@@ -28,13 +28,8 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+
 import jolie.lang.Constants;
 import jolie.lang.NativeType;
 import jolie.lang.parse.ast.AddAssignStatement;
@@ -145,6 +140,7 @@ public class OLParser extends AbstractParser
 		new HashMap<>();
 
 	private final Map< String, TypeDefinition > definedTypes;
+	private final Set< URI > includedFiles = new HashSet<>();
 	private final ClassLoader classLoader;
 
 	private InterfaceExtenderDefinition currInterfaceExtender = null;
@@ -557,7 +553,7 @@ public class OLParser extends AbstractParser
 			eat( Scanner.TokenType.RCURLY, "expected }" );
 		}
 	}
-	
+
 	private URL guessIncludeFilepath( String urlStr, String filename, String path )
 	{
 		try {
@@ -607,11 +603,11 @@ public class OLParser extends AbstractParser
 		} catch( MalformedURLException | URISyntaxException e ) {}
 		return null;
 	}
-	
+
 	private IncludeFile retrieveIncludeFile( final String path, final String filename )
 	{
 		IncludeFile ret;
-		
+
 		String urlStr = build( path, Constants.fileSeparator, filename );
 
 		ret = tryAccessIncludeFile( urlStr );
@@ -623,9 +619,9 @@ public class OLParser extends AbstractParser
 		}
 		return ret;
 	}
-	
+
 	private final Map< String, URL > resourceCache = new HashMap<>();
-	
+
 	private IncludeFile tryAccessIncludeFile( String includeStr )
 	{
 		if ( Helpers.getOperatingSystemType() == Helpers.OSType.Windows ) {
@@ -640,7 +636,7 @@ public class OLParser extends AbstractParser
 			includeStr,
 			classLoader::getResource
 		);
-		
+
 		if ( includeURL != null ) {
 			File f = new File( includeURL.toString() );
 			try {
@@ -681,7 +677,7 @@ public class OLParser extends AbstractParser
 			for ( int i = 0; i < includePaths.length && includeFile == null; i++ ) {
 				includeFile = retrieveIncludeFile( includePaths[i], includeStr );
 			}
-			
+
 			if ( includeFile == null ) {
 				includeFile = tryAccessIncludeFile( includeStr );
 				if ( includeFile == null ) {
@@ -689,20 +685,23 @@ public class OLParser extends AbstractParser
 				}
 			}
 
-			origIncludePaths = includePaths;
-			// includes are explicitly parsed in ASCII to be independent of program's encoding
-			setScanner( new Scanner( includeFile.getInputStream(), includeFile.getURI(), "US-ASCII" ) );
-			
-			if ( includeFile.getParentPath() == null ) {
-				includePaths = Arrays.copyOf( origIncludePaths, origIncludePaths.length );
-			} else {
-				includePaths = Arrays.copyOf( origIncludePaths, origIncludePaths.length + 1 );
-				includePaths[ origIncludePaths.length ] = includeFile.getParentPath();
+			if ( !includedFiles.contains( includeFile.getURI() ) ) {
+				origIncludePaths = includePaths;
+				// includes are explicitly parsed in ASCII to be independent of program's encoding
+				setScanner( new Scanner( includeFile.getInputStream(), includeFile.getURI(), "US-ASCII" ) );
+
+				if ( includeFile.getParentPath() == null ) {
+					includePaths = Arrays.copyOf( origIncludePaths, origIncludePaths.length );
+				} else {
+					includePaths = Arrays.copyOf( origIncludePaths, origIncludePaths.length + 1 );
+					includePaths[ origIncludePaths.length ] = includeFile.getParentPath();
+				}
+				_parse();
+				includePaths = origIncludePaths;
+				includeFile.getInputStream().close();
+				setScanner( oldScanner );
+				includedFiles.add( includeFile.getURI() );
 			}
-			_parse();
-			includePaths = origIncludePaths;
-			includeFile.getInputStream().close();
-			setScanner( oldScanner );
 			getToken();
 		}
 	}
@@ -771,14 +770,14 @@ public class OLParser extends AbstractParser
 				node = parsePort();
 			} else {
 				keepRun = false;
-				
+
 				if ( haveDocumentation ) {
 					addToken( commentToken );
 					addToken( token );
 					getToken();
 				}
 			}
-			
+
 			if ( haveDocumentation && node != null ) {
 				node.setDocumentation( commentToken.content() );
 				haveDocumentation = false;
@@ -797,7 +796,7 @@ public class OLParser extends AbstractParser
 		}
 		return p;
 	}
-    
+
 	private InputPortInfo createInternalServiceInputPort( String serviceName, List< InterfaceDefinition> interfaceList )
 		throws ParserException
 	{
@@ -821,7 +820,7 @@ public class OLParser extends AbstractParser
 		}
 		return iport;
 	}
-    
+
 	/**
 	 * Parses an internal service, i.e. service service_name {}
 	 *
@@ -901,7 +900,7 @@ public class OLParser extends AbstractParser
 
 		//add output port to main program
 		program.addChild( createInternalServicePort( serviceName, interfaceList ) );
-		
+
 		//create Program representing the internal service
 		Program internalServiceProgram = new Program( getContext() );
 
@@ -941,7 +940,7 @@ public class OLParser extends AbstractParser
 		//add embedded service node to program that is embedding it
 		program.addChild( internalServiceNode );
 	}
-    
+
 	private InputPortInfo parseInputPortInfo()
 		throws IOException, ParserException
 	{
@@ -950,14 +949,14 @@ public class OLParser extends AbstractParser
 		URI inputPortLocation;
 		List< InterfaceDefinition > interfaceList = new ArrayList<>();
 		OLSyntaxNode protocolConfiguration = new NullProcessStatement( getContext() );
-		
+
 		getToken();
 		assertToken( Scanner.TokenType.ID, "expected inputPort name" );
 		inputPortName = token.content();
 		getToken();
 		eat( Scanner.TokenType.LCURLY, "{ expected" );
 		InterfaceDefinition iface = new InterfaceDefinition( getContext(), "Internal interface for: " + inputPortName );
-		
+
 		inputPortLocation = null;
 		protocolId = null;
 		Map<String, String> redirectionMap = new HashMap<>();
@@ -1066,7 +1065,7 @@ public class OLParser extends AbstractParser
 		program.addChild( iport );
 		return iport;
 	}
-	
+
 	private void parseAggregationList( List< InputPortInfo.AggregationItemInfo > aggregationList )
 		throws ParserException, IOException
 	{
@@ -1116,7 +1115,7 @@ public class OLParser extends AbstractParser
 			}
 		}
 	}
-	
+
 	private InterfaceDefinition parseInterfaceExtender()
 		throws IOException, ParserException
 	{
@@ -1190,7 +1189,7 @@ public class OLParser extends AbstractParser
 					i.copyTo( p );
 					p.addInterface( i );
 					getToken();
-					
+
 					if ( token.is( Scanner.TokenType.COMMA ) ) {
 						getToken();
 					} else {
@@ -1385,7 +1384,7 @@ public class OLParser extends AbstractParser
 				} else {
 					oc.addOperation( opRR );
 				}
-				
+
 				if ( token.is( Scanner.TokenType.COMMA ) ) {
 					getToken();
 				} else {
@@ -1397,7 +1396,7 @@ public class OLParser extends AbstractParser
 
 		}
 	}
-	
+
 	private SequenceStatement initSequence = null;
 	private DefinitionNode main = null;
 
@@ -1470,7 +1469,7 @@ public class OLParser extends AbstractParser
 
 		return retVal;
 	}
-	
+
 	private CourierDefinitionNode parseCourierDefinition()
 		throws IOException, ParserException
 	{
@@ -1522,7 +1521,7 @@ public class OLParser extends AbstractParser
 
 		return stm;
 	}
-	
+
 	private final List< List< Scanner.Token > > inVariablePaths = new ArrayList<>();
 
 	private OLSyntaxNode parseInVariablePathProcess( boolean withConstruct )
@@ -1577,7 +1576,7 @@ public class OLParser extends AbstractParser
 			checkConstant();
 			String id = token.content();
 			getToken();
-			
+
 			if ( token.is( Scanner.TokenType.LSQUARE ) || token.is( Scanner.TokenType.DOT ) || token.is( Scanner.TokenType.ASSIGN ) || token.is( Scanner.TokenType.ADD_ASSIGN ) || token.is( Scanner.TokenType.MINUS_ASSIGN ) || token.is( Scanner.TokenType.MULTIPLY_ASSIGN ) || token.is( Scanner.TokenType.DIVIDE_ASSIGN ) || token.is( Scanner.TokenType.POINTS_TO ) || token.is( Scanner.TokenType.DEEP_COPY_LEFT ) || token.is( Scanner.TokenType.DECREMENT ) || token.is( Scanner.TokenType.INCREMENT ) ) {
 				retVal = parseAssignOrDeepCopyOrPointerStatement( _parseVariablePath( id ) );
 			} else if ( id.equals( "forward" ) && ( token.is( Scanner.TokenType.ID ) || token.is( Scanner.TokenType.LPAREN ) ) ) {
@@ -1656,10 +1655,10 @@ public class OLParser extends AbstractParser
 		case FOR:
 			getToken();
 			eat( Scanner.TokenType.LPAREN, "expected (" );
-			
+
 			startBackup();
 			VariablePathNode leftPath = null;
-			
+
 			try {
 				leftPath = parseVariablePath();
 			} catch( ParserException e ) {}
@@ -1699,7 +1698,7 @@ public class OLParser extends AbstractParser
 			eat( Scanner.TokenType.LPAREN, "expected (" );
 
 			final VariablePathNode keyPath = parseVariablePath();
-			
+
 			eat( Scanner.TokenType.COLON, "expected :" );
 
 			final VariablePathNode targetPath = parseVariablePath();
@@ -1876,7 +1875,7 @@ public class OLParser extends AbstractParser
 
 		return retVal;
 	}
-	
+
 	private OLSyntaxNode parseProvideUntilStatement()
 		throws IOException, ParserException
 	{
@@ -1886,12 +1885,12 @@ public class OLParser extends AbstractParser
 			throwException( "expected until" );
 		}
 		getToken();
-		
+
 		NDChoiceStatement until = parseNDChoiceStatement();
-		
+
 		return new ProvideUntilStatement( context, provide, until );
 	}
-	
+
 	private OLSyntaxNode parseForwardStatement()
 		throws IOException, ParserException
 	{
@@ -1908,7 +1907,7 @@ public class OLParser extends AbstractParser
 		} else { // Notification
 			retVal = new NotificationForwardStatement( getContext(), outputPortName, outputVariablePath );
 		}
-		
+
 		return retVal;
 	}
 
@@ -1939,7 +1938,7 @@ public class OLParser extends AbstractParser
 				vec.add( new Pair<>( name, handler ) );
 			}
 			names.clear();
-			
+
 			if ( token.is( Scanner.TokenType.COMMA ) ) {
 				getToken();
 			} else {
@@ -2092,7 +2091,7 @@ public class OLParser extends AbstractParser
 
 		return _parseVariablePath( varId );
 	}
-	
+
 	private CourierChoiceStatement parseCourierChoice()
 		throws IOException, ParserException
 	{
@@ -2186,7 +2185,7 @@ public class OLParser extends AbstractParser
 			} else {
 				process = new NullProcessStatement( getContext() );
 			}
-			
+
 			stm.addChild( new Pair<>( inputGuard, process ) );
 		}
 
@@ -2639,8 +2638,8 @@ public class OLParser extends AbstractParser
 				eat( Scanner.TokenType.RPAREN, "expected )" );
 				break;
 			}
-		}	
-				
+		}
+
 		if ( retVal == null ) {
 			if ( token.is( Scanner.TokenType.LCURLY ) ) {
 				retVal = new VoidExpressionNode( getContext() );
@@ -2648,43 +2647,43 @@ public class OLParser extends AbstractParser
 				throwException( "expected expression" );
 			}
 		}
-		
+
 		if ( token.is( Scanner.TokenType.LCURLY ) ) {
 			retVal = parseInlineTreeExpression( retVal );
 		}
 
 		return retVal;
 	}
-	
+
 	private OLSyntaxNode parseInlineTreeExpression( OLSyntaxNode rootExpression )
 		throws IOException, ParserException
 	{
 		eat( Scanner.TokenType.LCURLY, "expected {" );
-		
+
 		boolean keepRun = true;
 		VariablePathNode path;
 		OLSyntaxNode expression;
-		
+
 		List< Pair< VariablePathNode, OLSyntaxNode > > assignments = new ArrayList<>();
-		
+
 		while( keepRun ) {
 			eat( Scanner.TokenType.DOT, "expected ." );
-			
+
 			path = parseVariablePath();
 			eat( Scanner.TokenType.ASSIGN, "expected =" );
 			expression = parseExpression();
-			
+
 			assignments.add( new Pair<>( path, expression ) );
-			
+
 			if ( token.is( Scanner.TokenType.COMMA ) ) {
 				getToken();
 			} else {
 				keepRun = false;
 			}
 		}
-		
+
 		eat( Scanner.TokenType.RCURLY, "expected }" );
-		
+
 		return new InlineTreeExpressionNode( rootExpression.context(), rootExpression, assignments.toArray( new Pair[0] ) );
 	}
 
@@ -2716,7 +2715,7 @@ public class OLParser extends AbstractParser
 
 		return product;
 	}
-	
+
 	private static class IncludeFile {
 		private final InputStream inputStream;
 		private final String parentPath;
@@ -2742,5 +2741,6 @@ public class OLParser extends AbstractParser
 		{
 			return uri;
 		}
+
 	}
 }

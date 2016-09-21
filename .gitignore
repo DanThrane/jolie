@@ -33,3 +33,5 @@ build/
 /extensions/local/nbproject/private/
 /lib/jolie-js/nbproject/private/
 /tools/jolie2surface/nbproject/private/
+
+.idea
