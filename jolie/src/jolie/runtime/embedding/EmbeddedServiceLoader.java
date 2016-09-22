@@ -25,6 +25,7 @@ package jolie.runtime.embedding;
 import jolie.Interpreter;
 import jolie.lang.Constants;
 import jolie.lang.parse.ast.Program;
+import jolie.lang.parse.context.ParsingContext;
 import jolie.net.CommChannel;
 import jolie.runtime.Value;
 import jolie.runtime.VariablePath;
@@ -58,7 +59,8 @@ public abstract class EmbeddedServiceLoader
 						ret = new JavaServiceLoader( channelDest, externalConfiguration.servicePath(), interpreter );
 						break;
 					case JOLIE:
-						ret = new JolieServiceLoader( channelDest, interpreter, externalConfiguration.servicePath() );
+						ret = new JolieServiceLoader( channelDest, interpreter, externalConfiguration.servicePath(),
+								externalConfiguration.parsingContext() );
 						break;
 					default:
 						String serviceType = configuration.type().toString();
@@ -163,16 +165,20 @@ public abstract class EmbeddedServiceLoader
 	public static class ExternalEmbeddedServiceConfiguration extends EmbeddedServiceConfiguration
 	{
 		private final String servicePath;
+		private final ParsingContext parsingContext;
 
 		/**
-		 *
-		 * @param type Type of embedded service, cannot be INTERNAL
-		 * @param servicePath path of service
+		 * @param type           Type of embedded service, cannot be INTERNAL
+		 * @param servicePath    Path of service
+		 * @param parsingContext The parsing context which created this embedding, used for resolving the service
+		 *                       path correctly.
 		 */
-		public ExternalEmbeddedServiceConfiguration( Constants.EmbeddedServiceType type, String servicePath )
+		public ExternalEmbeddedServiceConfiguration ( Constants.EmbeddedServiceType type, String servicePath,
+													  ParsingContext parsingContext )
 		{
 			super( type );
 			this.servicePath = servicePath;
+			this.parsingContext = parsingContext;
 
 			assert type != Constants.EmbeddedServiceType.INTERNAL;
 		}
@@ -180,6 +186,10 @@ public abstract class EmbeddedServiceLoader
 		public String servicePath()
 		{
 			return servicePath;
+		}
+
+		public ParsingContext parsingContext() {
+			return parsingContext;
 		}
 
 	}
