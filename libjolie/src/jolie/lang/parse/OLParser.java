@@ -19,11 +19,7 @@
 
 package jolie.lang.parse;
 
-import java.io.BufferedInputStream;
-import java.io.EOFException;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -620,6 +616,35 @@ public class OLParser extends AbstractParser
 		return ret;
 	}
 
+	private IncludeFile findPackageInclude ( final String packageString, final String includeString )
+			throws ParserException, FileNotFoundException
+	{
+		File packageDirectory = new File( "jpm_packages", packageString );
+
+		if ( !packageDirectory.exists() ) {
+			throwException( "Package " + packageString + " does not exist! [Expected " +
+					packageDirectory.getAbsolutePath() + " to exist, it does not]" );
+		}
+
+		// TODO Figure out how exactly the existing search algorithm works, it seems rather complicated.
+		// I'm not sure there is any good reason for it being that however. For now we use something simple, which
+		// seems to follow my understanding of the include algorithm.
+
+		File includeDirectory = new File( packageDirectory, "include" );
+
+		List<File> includePaths = Arrays.asList( packageDirectory, includeDirectory );
+
+		for ( File directory : includePaths ) {
+			File file = new File( directory, includeString );
+			if ( file.exists() ) {
+				return new IncludeFile( new FileInputStream( file ), directory.getAbsolutePath(), file.toURI() );
+			}
+		}
+
+		throwException( "Could not find '" + includeString + "' in package '" + packageString + "'" );
+		return null;
+	}
+
 	private final Map< String, URL > resourceCache = new HashMap<>();
 
 	private IncludeFile tryAccessIncludeFile( String includeStr )
@@ -659,33 +684,39 @@ public class OLParser extends AbstractParser
 			Scanner oldScanner = scanner();
 			assertToken( Scanner.TokenType.STRING, "expected filename to include" );
 			String includeStr = token.content();
-			includeFile = null;
+			getToken();
+			if ( token.is( Scanner.TokenType.STRING ) ) {
+				// Package type include
 
-			// Try the same directory of the program file first.
-			/* if ( includePaths.length > 1 ) {
-				includeFile = retrieveIncludeFile( includePaths[0], includeStr );
-			} */
+				// TODO We need to move the default "include" include paths out of the command line arguments
+				String packageString = includeStr;
+				includeStr = token.content();
+				includeFile = findPackageInclude( packageString, includeStr );
+				getToken();
+			} else {
+				includeFile = null;
 
-			/* if ( includeFile == null ) {
-				URL includeURL = classLoader.getResource( includeStr );
-				if ( includeURL != null ) {
-					File f = new File( includeURL.toString() );
-					includeFile = new IncludeFile( includeURL.openStream(), f.getParent(), f.toURI() );
+				if ( oldScanner.source().getScheme().equals( "file" ) ) {
+					includeFile = retrieveIncludeFile( new File( oldScanner.source() ).getParent(), includeStr );
 				}
-			} */
 
-			for ( int i = 0; i < includePaths.length && includeFile == null; i++ ) {
-				includeFile = retrieveIncludeFile( includePaths[i], includeStr );
-			}
+				for ( int i = 0; i < includePaths.length && includeFile == null; i++ ) {
+					includeFile = retrieveIncludeFile( includePaths[i], includeStr );
+				}
 
-			if ( includeFile == null ) {
-				includeFile = tryAccessIncludeFile( includeStr );
 				if ( includeFile == null ) {
-					throwException( "File not found: " + includeStr );
+					includeFile = tryAccessIncludeFile( includeStr );
+					if ( includeFile == null ) {
+						throwException( "File not found: " + includeStr );
+					}
 				}
 			}
 
-			if ( !includedFiles.contains( includeFile.getURI() ) ) {
+			if ( includeFile != null && !includedFiles.contains( includeFile.getURI() ) ) {
+				// When we switch scanner the old next token is erased. We will have to save it here, such that we can
+				// continue at the correct token.
+				Scanner.Token nextToken = token;
+
 				origIncludePaths = includePaths;
 				// includes are explicitly parsed in ASCII to be independent of program's encoding
 				setScanner( new Scanner( includeFile.getInputStream(), includeFile.getURI(), "US-ASCII" ) );
@@ -694,15 +725,17 @@ public class OLParser extends AbstractParser
 					includePaths = Arrays.copyOf( origIncludePaths, origIncludePaths.length );
 				} else {
 					includePaths = Arrays.copyOf( origIncludePaths, origIncludePaths.length + 1 );
-					includePaths[ origIncludePaths.length ] = includeFile.getParentPath();
+					includePaths[origIncludePaths.length] = includeFile.getParentPath();
 				}
 				_parse();
 				includePaths = origIncludePaths;
 				includeFile.getInputStream().close();
+
 				setScanner( oldScanner );
+				token = nextToken;
+
 				includedFiles.add( includeFile.getURI() );
 			}
-			getToken();
 		}
 	}
 
