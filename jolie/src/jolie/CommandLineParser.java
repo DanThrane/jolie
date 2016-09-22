@@ -551,12 +551,7 @@ public class CommandLineParser implements Closeable
 				urls.add( new URL( "file:" + path + "/" ) );
 			} else if ( path.endsWith( Constants.fileSeparator + "*" ) ) {
 				File dir = new File( path.substring( 0, path.length() - 2 ) );
-				String jars[] = dir.list( ( File directory, String filename ) -> filename.endsWith( ".jar" ) );
-				if ( jars != null ) {
-					for( String jarPath : jars ) {
-						urls.add( new URL( "jar:file:" + dir.getCanonicalPath() + '/' + jarPath + "!/" ) );
-					}
-				}
+				extractAndAddJarUrlsFromDirectory( urls, dir );
 			} else {
 				try {
 					urls.add( new URL( path ) );
@@ -565,6 +560,7 @@ public class CommandLineParser implements Closeable
 				}
 			}
 		}
+		urls.addAll( searchForPackageLibraries() );
 		urls.add( new URL( "file:/" ) );
 		libURLs = urls.toArray( new URL[]{} );
 		jolieClassLoader = new JolieClassLoader( libURLs, parentClassLoader );
@@ -595,8 +591,34 @@ public class CommandLineParser implements Closeable
 
 		includePaths = includeList.toArray( new String[]{} );
 	}
-	
-	
+
+	private void extractAndAddJarUrlsFromDirectory ( List< URL > urls, File dir ) throws IOException
+	{
+		String jars[] = dir.list( ( File directory, String filename ) -> filename.endsWith( ".jar" ) );
+		if ( jars != null ) {
+			for ( String jarPath : jars ) {
+				urls.add( new URL( "jar:file:" + dir.getCanonicalPath() + '/' + jarPath + "!/" ) );
+			}
+		}
+	}
+
+	private List< URL > searchForPackageLibraries() throws IOException
+	{
+		List< URL > result = new ArrayList<>();
+		File packagesDirectory = new File( "jpm_packages" );
+		if ( packagesDirectory.exists() ) {
+			File[] files = packagesDirectory.listFiles();
+			if ( files != null ) {
+				for (File packageDirectory : files ) {
+					File libDirectory = new File( packageDirectory, "lib" );
+					if ( libDirectory.exists() ) {
+						extractAndAddJarUrlsFromDirectory( result, libDirectory );
+					}
+				}
+			}
+		}
+		return result;
+	}
 	
 	/**
 	 * Adds the standard include and library subdirectories of the program to
