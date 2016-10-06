@@ -22,6 +22,8 @@ package jolie;
 
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Deque;
@@ -34,6 +36,8 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiPredicate;
+
+import jolie.configuration.*;
 import jolie.lang.Constants;
 import jolie.lang.Constants.ExecutionMode;
 import jolie.lang.Constants.OperandType;
@@ -218,6 +222,7 @@ import jolie.runtime.expression.VoidExpression;
 import jolie.runtime.typing.OneWayTypeDescription;
 import jolie.runtime.typing.RequestResponseTypeDescription;
 import jolie.runtime.typing.Type;
+import jolie.runtime.typing.TypeCastingException;
 import jolie.util.ArrayListMultiMap;
 import jolie.util.MultiMap;
 import jolie.util.Pair;
@@ -248,6 +253,7 @@ public class OOITBuilder implements OLVisitor
 		new HashMap<>();
 	private final Deque< OLSyntaxNode > lazyVisits = new LinkedList<>();	
 	private boolean firstPass = true;
+	private final ConfigurationHolder configurationHolder;
 
 	private static class AggregationConfiguration {
 		private final OutputPort defaultOutputPort;
@@ -271,18 +277,20 @@ public class OOITBuilder implements OLVisitor
 	 * @param program the Program to generate the interpretation tree from
 	 * @param isConstantMap
 	 * @param correlationFunctionInfo
+	 * @param configurationHolder
 	 * @see Program
 	 */
-	public OOITBuilder(
-		Interpreter interpreter,
-		Program program,
-		Map< String, Boolean > isConstantMap,
-		CorrelationFunctionInfo correlationFunctionInfo
-	) {
+	public OOITBuilder (
+			Interpreter interpreter,
+			Program program,
+			Map< String, Boolean > isConstantMap,
+			CorrelationFunctionInfo correlationFunctionInfo,
+			ConfigurationHolder configurationHolder ) {
 		this.interpreter = interpreter;
 		this.program = new Program( program.context() );
 		this.isConstantMap = isConstantMap;
 		this.correlationFunctionInfo = correlationFunctionInfo;
+		this.configurationHolder = configurationHolder;
 
 		Map< String, TypeDefinition > builtInTypes = OLParser.createTypeDeclarationMap( program.context() );
 		this.program.children().addAll( builtInTypes.values() );
@@ -420,10 +428,6 @@ public class OOITBuilder implements OLVisitor
 
 	public void visit( OutputPortInfo n )
 	{
-		final Process protocolConfigurationProcess =
-			( n.protocolConfiguration() != null ) ? buildProcess( n.protocolConfiguration() )
-			: NullProcess.getInstance();
-		
 		final boolean isConstant = isConstantMap.computeIfAbsent( n.id(), k -> false );
 
 		currentOutputPort = n.id();
@@ -434,16 +438,52 @@ public class OOITBuilder implements OLVisitor
 		}
 		currentOutputPort = null;
 
+		Configuration configuration = configurationHolder.getConfiguration();
+
+		ProtocolConfiguration protocolConfig = getProtocolConfigurationForOutputPort( n, configuration );
+		URI location = getLocationForOutputPort( n, configuration );
+
 		interpreter.register( n.id(), new OutputPort(
 				interpreter,
 				n.id(),
-				n.protocolId(),
-				protocolConfigurationProcess,
-				n.location(),
+				protocolConfig,
+				location,
 				getOutputPortInterface( n.id() ),
 				isConstant
 			)
 		);
+	}
+
+	private ProtocolConfiguration getProtocolConfigurationForOutputPort( OutputPortInfo n, Configuration configuration )
+	{
+		if ( n.protocolId() != null ) {
+			Process p = ( n.protocolConfiguration() != null ) ?
+					buildProcess( n.protocolConfiguration() ) :
+					NullProcess.getInstance();
+
+			return new ASTProtocolConfiguration( n.protocolId(), p);
+		} else if ( n.isExternal() && configuration.hasOutputPortProtocol( n.id() ) ) {
+			return new ExternalProtocolConfiguration(
+					configuration.getOutputPorts().get( n.id() ).getFirstChild( "protocol" )
+			);
+		} else {
+			return NullProtocolConfiguration.INSTANCE;
+		}
+	}
+
+	private URI getLocationForOutputPort( OutputPortInfo n, Configuration configuration )
+	{
+		if ( n.location() == null && n.isExternal() && configuration.hasOutputPortLocation( n.id() ) ) {
+			Value str = configuration.getOutputPorts().get( n.id() ).getFirstChild( "location" );
+			try {
+				return new URI( str.strValueStrict() );
+			} catch ( URISyntaxException | TypeCastingException e ) {
+				throw new IllegalStateException( "Unable to '" + str.strValue() +
+						"' parse external output port location for " + n.id(), e );
+			}
+		} else {
+			return n.location();
+		}
 	}
 
 	private Interface getOutputPortInterface( String outputPortName )
@@ -497,7 +537,7 @@ public class OOITBuilder implements OLVisitor
 	{
 		Map< String, AggregationConfiguration > map = aggregationConfigurations.get( inputPortName );
 		if ( map == null ) {
-			map = new HashMap< String, AggregationConfiguration >();
+			map = new HashMap<>();
 			aggregationConfigurations.put( inputPortName, map );
 		}
 		map.put( operationName, configuration );
@@ -505,31 +545,132 @@ public class OOITBuilder implements OLVisitor
 
 	public void visit( InputPortInfo n )
 	{
-		currentPortInterface = new Interface(
-			new HashMap< String, OneWayTypeDescription >(),
-			new HashMap< String, RequestResponseTypeDescription >()
-		);
+		Configuration configuration = configurationHolder.getConfiguration();
+
+		currentPortInterface = new Interface( new HashMap<>(), new HashMap<>() );
 		for( OperationDeclaration op : n.operations() ) {
 			op.accept( this );
 		}
-		
-		Map< String, OutputPort > redirectionMap =
-			new HashMap< String, OutputPort > ();
-		OutputPort oPort = null;
-		for( Entry< String, String > entry : n.redirectionMap().entrySet() ) {
+
+		Map< String, OutputPort > redirectionMap = getRedirectionMapForInputPort( n );
+		Map< String, AggregatedOperation > aggregationMap = getAggregationMapForInputPort( n );
+
+		VariablePath locationPath = new VariablePathBuilder( true )
+				.add( Constants.INPUT_PORTS_NODE_NAME, 0 )
+				.add( n.id(), 0 )
+				.add( Constants.LOCATION_NODE_NAME, 0 )
+				.toVariablePath();
+		locationPath = new ClosedVariablePath( locationPath, interpreter.globalValue() );
+
+		VariablePath protocolPath = new VariablePathBuilder( true )
+				.add( Constants.INPUT_PORTS_NODE_NAME, 0 )
+				.add( n.id(), 0 )
+				.add( Constants.PROTOCOL_NODE_NAME, 0 )
+				.toVariablePath();
+
+		URI location = getLocationForInputPort( n, configuration );
+		locationPath.getValue().setValue( location.toString() );
+
+		ProtocolConfiguration protocolConfiguration = getProtocolConfigurationForInputPort( n, configuration );
+		List< Process > configurationProcesses = protocolConfiguration.configure( protocolPath );
+
+		SequentialProcess protocolConfigurationSequence = new SequentialProcess(
+				configurationProcesses.toArray( new Process[0] )
+		);
+
+		InputPort inputPort = new InputPort(
+			n.id(),
+			locationPath,
+			protocolPath,
+			currentPortInterface,
+			aggregationMap,
+			redirectionMap
+		);
+
+		registerInputPort(
+				protocolConfigurationSequence,
+				inputPort,
+				protocolConfiguration.getProtocolIdentifier(),
+				location,
+				n.context()
+		);
+		currentPortInterface = null;
+	}
+
+	private URI getLocationForInputPort( InputPortInfo n, Configuration configuration )
+	{
+		if ( n.location() == null && n.isExternal() && configuration.hasInputPortLocation( n.id() ) ) {
+			Value str = configuration.getInputPorts().get( n.id() ).getFirstChild( "location" );
 			try {
-				oPort = interpreter.getOutputPort( entry.getValue() );
-			} catch( InvalidIdException e ) {
-				error( n.context(), "Unknown output port (" + entry.getValue() + ") in redirection for input port " + n.id() );
+				return new URI( str.strValueStrict() );
+			} catch ( URISyntaxException | TypeCastingException e ) {
+				throw new IllegalStateException( "Unable to '" + str.strValue() +
+						"' parse external output port location for " + n.id(), e );
 			}
-			redirectionMap.put( entry.getKey(), oPort );
+		} else {
+			return n.location();
+		}
+	}
+
+	private ProtocolConfiguration getProtocolConfigurationForInputPort( InputPortInfo n, Configuration configuration )
+	{
+		if ( n.protocolId() != null ) {
+			Process p = ( n.protocolConfiguration() != null ) ?
+					buildProcess( n.protocolConfiguration() ) :
+					NullProcess.getInstance();
+
+			return new ASTProtocolConfiguration( n.protocolId(), p);
+		} else if ( n.isExternal() && configuration.hasInputPortProtocol( n.id() ) ) {
+			return new ExternalProtocolConfiguration(
+					configuration.getInputPorts().get( n.id() ).getFirstChild( "protocol" )
+			);
+		} else {
+			return NullProtocolConfiguration.INSTANCE;
+		}
+	}
+
+	private void registerInputPort( SequentialProcess protocolConfigurationSequence, InputPort inputPort,
+									String protocol, URI location, ParsingContext parsingContext )
+	{
+		CommProtocolFactory protocolFactory = null;
+		try {
+			protocolFactory = interpreter.commCore().getCommProtocolFactory( protocol );
+		} catch( IOException e ) {
+			error( parsingContext, e );
 		}
 
+		if ( location.toString().equals( Constants.LOCAL_LOCATION_KEYWORD ) ) {
+			try {
+				interpreter.commCore().addLocalInputPort( inputPort );
+				inputPorts.put( inputPort.name(), inputPort );
+			} catch( IOException e ) {
+				error( parsingContext, e );
+			}
+		} else if ( protocolFactory != null || location.getScheme().equals( Constants.LOCAL_LOCATION_KEYWORD ) ) {
+			try {
+				interpreter.commCore().addInputPort(
+					inputPort,
+					protocolFactory,
+					protocolConfigurationSequence
+				);
+				inputPorts.put( inputPort.name(), inputPort );
+			} catch( IOException ioe ) {
+				error( parsingContext, ioe );
+			}
+		} else {
+			error( parsingContext, "Communication protocol extension for protocol " + protocol + " not found." );
+		}
+	}
+
+	private Map< String, AggregatedOperation > getAggregationMapForInputPort( InputPortInfo n )
+	{
+		Map< String, AggregatedOperation > aggregationMap = new HashMap<>();
+
 		OutputPort outputPort;
+		InterfaceExtender extender;
 		Map< String, OneWayTypeDescription > outputPortNotificationTypes;
 		Map< String, RequestResponseTypeDescription > outputPortSolicitResponseTypes;
-		Map< String, AggregatedOperation > aggregationMap = new HashMap< String, AggregatedOperation >();
-		InterfaceExtender extender;
+
 		for( InputPortInfo.AggregationItemInfo item : n.aggregationList() ) {
 			String outputPortName = item.outputPortList()[0];
 			if ( item.interfaceExtender() == null ) {
@@ -555,73 +696,22 @@ public class OOITBuilder implements OLVisitor
 				error( n.context(), e );
 			}
 		}
-		
-		String pId = n.protocolId();
-		CommProtocolFactory protocolFactory = null;
+		return aggregationMap;
+	}
 
-		VariablePath protocolConfigurationPath =
-			new VariablePathBuilder( true )
-			.add( Constants.INPUT_PORTS_NODE_NAME, 0 )
-			.add( n.id(), 0 )
-			.add( Constants.PROTOCOL_NODE_NAME, 0 )
-			.toVariablePath();
-		try {
-			protocolFactory = interpreter.commCore().getCommProtocolFactory( pId );
-		} catch( IOException e ) {
-			error( n.context(), e );
-		}
-
-		VariablePath locationPath =
-			new VariablePathBuilder( true )
-			.add( Constants.INPUT_PORTS_NODE_NAME, 0 )
-			.add( n.id(), 0 )
-			.add( Constants.LOCATION_NODE_NAME, 0 )
-			.toVariablePath();
-		locationPath = new ClosedVariablePath( locationPath, interpreter.globalValue() );
-		// Process assignLocation = new AssignmentProcess( locationPath, Value.create( n.location().toString() ) );
-		locationPath.getValue().setValue( n.location().toString() );
-
-		VariablePath protocolPath =
-			new VariablePathBuilder( true )
-			.add( Constants.INPUT_PORTS_NODE_NAME, 0 )
-			.add( n.id(), 0 )
-			.add( Constants.PROTOCOL_NODE_NAME, 0 )
-			.toVariablePath();
-		Process assignProtocol = new AssignmentProcess( protocolPath, Value.create( n.protocolId() ) );
-		Process[] confChildren = new Process[] { assignProtocol, buildProcess( n.protocolConfiguration() ) };
-		SequentialProcess protocolConfigurationSequence = new SequentialProcess( confChildren );
-
-		InputPort inputPort = new InputPort(
-			n.id(),
-			locationPath,
-			protocolConfigurationPath,
-			currentPortInterface,
-			aggregationMap,
-			redirectionMap
-		);
-		
-		if ( n.location().toString().equals( Constants.LOCAL_LOCATION_KEYWORD ) ) {
+	private Map< String, OutputPort > getRedirectionMapForInputPort( InputPortInfo n )
+	{
+		Map< String, OutputPort > redirectionMap = new HashMap<>();
+		OutputPort oPort = null;
+		for( Entry< String, String > entry : n.redirectionMap().entrySet() ) {
 			try {
-				interpreter.commCore().addLocalInputPort( inputPort );
-				inputPorts.put( inputPort.name(), inputPort );
-			} catch( IOException e ) {
-				error( n.context(), e );
+				oPort = interpreter.getOutputPort( entry.getValue() );
+			} catch( InvalidIdException e ) {
+				error( n.context(), "Unknown output port (" + entry.getValue() + ") in redirection for input port " + n.id() );
 			}
-		} else if ( protocolFactory != null || n.location().getScheme().equals( Constants.LOCAL_LOCATION_KEYWORD ) ) {
-			try {
-				interpreter.commCore().addInputPort(
-					inputPort,
-					protocolFactory,
-					protocolConfigurationSequence
-				);
-				inputPorts.put( inputPort.name(), inputPort );
-			} catch( IOException ioe ) {
-				error( n.context(), ioe );
-			}
-		} else {
-			error( n.context(), "Communication protocol extension for protocol " + pId + " not found." );
+			redirectionMap.put( entry.getKey(), oPort );
 		}
-		currentPortInterface = null;
+		return redirectionMap;
 	}
 
 	private Process currProcess;

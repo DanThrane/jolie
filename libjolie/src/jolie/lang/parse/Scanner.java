@@ -129,6 +129,7 @@ public class Scanner
 		CURRENT_HANDLER,	///< cH
 		INIT,				///< init
 		PROVIDE,			///< provide
+		EXT,				///< ext
 		ERROR				///< Scanner error
 	}
 	
@@ -182,6 +183,7 @@ public class Scanner
 		unreservedKeywords.put( "true", TokenType.TRUE );
 		unreservedKeywords.put( "false", TokenType.FALSE );
 		unreservedKeywords.put( "provide", TokenType.PROVIDE );
+		unreservedKeywords.put( "ext", TokenType.EXT);
 	}
 	
 	/**

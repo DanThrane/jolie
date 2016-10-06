@@ -30,32 +30,11 @@ import jolie.lang.parse.context.ParsingContext;
 
 public class InputPortInfo extends PortInfo
 {
-	public static class AggregationItemInfo implements Serializable {
-		private final String[] outputPortList;
-		private final InterfaceExtenderDefinition interfaceExtender;
-		
-		public AggregationItemInfo( String[] outputPortList, InterfaceExtenderDefinition extender )
-		{
-			this.outputPortList = outputPortList;
-			this.interfaceExtender = extender;
-		}
-		
-		public String[] outputPortList()
-		{
-			 return outputPortList;
-		}
-		
-		public InterfaceExtenderDefinition interfaceExtender()
-		{
-			return interfaceExtender;
-		}
-	}
-	
 	private final URI location;
 	private final String protocolId;
 	private final OLSyntaxNode protocolConfiguration;
 	private final AggregationItemInfo[] aggregationList;
-	private final Map< String, String > redirectionMap;
+ 	private final Map< String, String > redirectionMap;
 
 	public InputPortInfo(
 		ParsingContext context,
@@ -103,5 +82,26 @@ public class InputPortInfo extends PortInfo
 	public void accept( OLVisitor visitor )
 	{
 		visitor.visit( this );
+	}
+
+	public static class AggregationItemInfo implements Serializable {
+		private final String[] outputPortList;
+		private final InterfaceExtenderDefinition interfaceExtender;
+
+		public AggregationItemInfo( String[] outputPortList, InterfaceExtenderDefinition extender )
+		{
+			this.outputPortList = outputPortList;
+			this.interfaceExtender = extender;
+		}
+
+		public String[] outputPortList()
+		{
+			return outputPortList;
+		}
+
+		public InterfaceExtenderDefinition interfaceExtender()
+		{
+			return interfaceExtender;
+		}
 	}
 }

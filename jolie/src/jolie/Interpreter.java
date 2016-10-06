@@ -55,6 +55,8 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Logger;
+
+import jolie.configuration.ConfigurationHolder;
 import jolie.lang.Constants;
 import jolie.lang.parse.OLParseTreeOptimizer;
 import jolie.lang.parse.OLParser;
@@ -286,6 +288,7 @@ public class Interpreter
 	private final String programFilename;
 	private final File programDirectory;
 	private OutputPort monitor = null;
+	private ConfigurationHolder configurationHolder = null;
 
 	public void setMonitor( OutputPort monitor )
 	{
@@ -829,7 +832,8 @@ public class Interpreter
 		throws CommandLineException, FileNotFoundException, IOException
 	{
 		this.parentClassLoader = parentClassLoader;
-        
+		this.configurationHolder = new ConfigurationHolder();
+
 		cmdParser = new CommandLineParser( args, parentClassLoader, ignoreFile );
 		classLoader = cmdParser.jolieClassLoader();
 		optionArgs = cmdParser.optionArgs();
@@ -1261,7 +1265,8 @@ public class Interpreter
 					this,
 					program,
 					semanticVerifier.isConstantMap(),
-					semanticVerifier.correlationFunctionInfo() ))
+					semanticVerifier.correlationFunctionInfo(),
+					configurationHolder ))
 					.build();
 			}
 

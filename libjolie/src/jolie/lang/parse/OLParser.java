@@ -522,26 +522,38 @@ public class OLParser extends AbstractParser
 		}
 	}
 
-	private void parseConstants()
-		throws IOException, ParserException
+	private void parseConstants ()
+			throws IOException, ParserException
 	{
 		if ( token.is( Scanner.TokenType.CONSTANTS ) ) {
 			getToken();
 			eat( Scanner.TokenType.LCURLY, "expected {" );
-			boolean keepRun = true;
-			while ( token.is( Scanner.TokenType.ID ) && keepRun ) {
+			while ( true ) {
+				if ( !token.is( Scanner.TokenType.ID ) ) {
+					break;
+				}
+				boolean isExternal = token.type() == Scanner.TokenType.EXT;
+				if ( isExternal ) getToken();
+
 				String cId = token.content();
 				getToken();
-				eat( Scanner.TokenType.ASSIGN, "expected =" );
-				if ( token.isValidConstant() == false ) {
-					throwException( "expected string, integer, double or identifier constant" );
+				if ( !isExternal ) {
+					eat( Scanner.TokenType.ASSIGN, "expected =" );
+					if ( !token.isValidConstant() ) {
+						throwException( "expected string, integer, double or identifier constant" );
+					}
 				}
-				if ( constantsMap.containsKey( cId ) == false ) {
-					constantsMap.put( cId, token );
+				if ( !constantsMap.containsKey( cId ) ) {
+					if ( isExternal ) {
+						constantsMap.put( cId, new Scanner.Token( Scanner.TokenType.EXT ) );
+					} else {
+						constantsMap.put( cId, token );
+					}
 				}
+
 				getToken();
 				if ( token.isNot( Scanner.TokenType.COMMA ) ) {
-					keepRun = false;
+					break;
 				} else {
 					getToken();
 				}
@@ -760,19 +772,33 @@ public class OLParser extends AbstractParser
 	private PortInfo parsePort()
 		throws IOException, ParserException
 	{
+		boolean isExternal = false;
 		PortInfo portInfo = null;
+
+		if ( token.type() == Scanner.TokenType.EXT ) {
+			isExternal = true;
+			getToken();
+			if ( !token.isKeyword( "inputPort" ) && !token.isKeyword( "outputPort" ) ) {
+				throw new ParserException( getContext(), "Expected port after 'ext' keyword" );
+			}
+		}
+
 		if ( token.isKeyword( "inputPort" ) ) {
-			portInfo = parseInputPortInfo();
+			portInfo = parseInputPortInfo( isExternal );
 		} else if ( token.isKeyword( "outputPort" ) ) {
 			getToken();
 			assertToken( Scanner.TokenType.ID, "expected output port identifier" );
 			OutputPortInfo p = new OutputPortInfo( getContext(), token.content() );
 			getToken();
 			eat( Scanner.TokenType.LCURLY, "expected {" );
-			parseOutputPortInfo( p );
+			parseOutputPortInfo( p, isExternal );
 			program.addChild( p );
 			eat( Scanner.TokenType.RCURLY, "expected }" );
 			portInfo = p;
+		}
+
+		if (portInfo != null) {
+			portInfo.setExternal( isExternal );
 		}
 		return portInfo;
 	}
@@ -797,9 +823,8 @@ public class OLParser extends AbstractParser
 				} else {
 					node = parseInterface();
 				}
-			} else if ( token.isKeyword( "inputPort" ) ) {
-				node = parsePort();
-			} else if ( token.isKeyword( "outputPort" ) ) {
+			} else if ( token.type() == Scanner.TokenType.EXT || token.isKeyword( "inputPort" ) ||
+					token.isKeyword( "outputPort" ) ) {
 				node = parsePort();
 			} else {
 				keepRun = false;
@@ -974,7 +999,7 @@ public class OLParser extends AbstractParser
 		program.addChild( internalServiceNode );
 	}
 
-	private InputPortInfo parseInputPortInfo()
+	private InputPortInfo parseInputPortInfo ( boolean isExternal )
 		throws IOException, ParserException
 	{
 		String inputPortName;
@@ -1083,14 +1108,22 @@ public class OLParser extends AbstractParser
 			}
 		}
 		eat( Scanner.TokenType.RCURLY, "} expected" );
-		if ( inputPortLocation == null ) {
-			throwException( "expected location URI for " + inputPortName );
-		} else if ( iface.operationsMap().isEmpty() && redirectionMap.isEmpty() && aggregationList.isEmpty() ) {
-			throwException( "expected at least one operation, interface, aggregation or redirection for inputPort " + inputPortName );
-		} else if ( protocolId == null && !inputPortLocation.toString().equals( Constants.LOCAL_LOCATION_KEYWORD ) && !inputPortLocation.getScheme().equals( Constants.LOCAL_LOCATION_KEYWORD ) ) {
-			throwException( "expected protocol for inputPort " + inputPortName );
+
+		if ( !isExternal ) {
+			if ( inputPortLocation == null ) {
+				throwException( "expected location URI for " + inputPortName );
+			} else if ( protocolId == null && !inputPortLocation.toString().equals( Constants.LOCAL_LOCATION_KEYWORD )
+					&& !inputPortLocation.getScheme().equals( Constants.LOCAL_LOCATION_KEYWORD ) ) {
+				throwException( "expected protocol for inputPort " + inputPortName );
+			}
 		}
-		InputPortInfo iport = new InputPortInfo( getContext(), inputPortName, inputPortLocation, protocolId, protocolConfiguration, aggregationList.toArray( new InputPortInfo.AggregationItemInfo[ aggregationList.size() ] ), redirectionMap );
+		if ( iface.operationsMap().isEmpty() && redirectionMap.isEmpty() && aggregationList.isEmpty() ) {
+			throwException( "expected at least one operation, interface, aggregation or redirection for inputPort " +
+					inputPortName );
+		}
+
+		InputPortInfo iport = new InputPortInfo( getContext(), inputPortName, inputPortLocation, protocolId,
+				protocolConfiguration, aggregationList.toArray( new InputPortInfo.AggregationItemInfo[ aggregationList.size() ] ), redirectionMap );
 		for( InterfaceDefinition i : interfaceList ) {
 			iport.addInterface( i );
 		}
@@ -1200,7 +1233,7 @@ public class OLParser extends AbstractParser
 		}
 	}
 
-	private void parseOutputPortInfo( OutputPortInfo p )
+	private void parseOutputPortInfo ( OutputPortInfo p, boolean isExternal )
 		throws IOException, ParserException
 	{
 		boolean keepRun = true;
