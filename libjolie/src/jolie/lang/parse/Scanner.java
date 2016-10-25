@@ -130,6 +130,8 @@ public class Scanner
 		INIT,				///< init
 		PROVIDE,			///< provide
 		EXT,				///< ext
+		PROFILE,			///< profile
+		CONFIGURES,			///< configures
 		ERROR				///< Scanner error
 	}
 	
@@ -183,7 +185,9 @@ public class Scanner
 		unreservedKeywords.put( "true", TokenType.TRUE );
 		unreservedKeywords.put( "false", TokenType.FALSE );
 		unreservedKeywords.put( "provide", TokenType.PROVIDE );
-		unreservedKeywords.put( "ext", TokenType.EXT);
+		unreservedKeywords.put( "ext", TokenType.EXT );
+		unreservedKeywords.put( "profile", TokenType.PROFILE );
+		unreservedKeywords.put( "configures", TokenType.CONFIGURES );
 	}
 	
 	/**
