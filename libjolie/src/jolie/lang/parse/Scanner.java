@@ -132,6 +132,7 @@ public class Scanner
 		EXT,				///< ext
 		PROFILE,			///< profile
 		CONFIGURES,			///< configures
+		EMBEDS,				///< configures
 		ERROR				///< Scanner error
 	}
 	
@@ -188,6 +189,7 @@ public class Scanner
 		unreservedKeywords.put( "ext", TokenType.EXT );
 		unreservedKeywords.put( "profile", TokenType.PROFILE );
 		unreservedKeywords.put( "configures", TokenType.CONFIGURES );
+		unreservedKeywords.put( "embeds", TokenType.EMBEDS );
 	}
 	
 	/**

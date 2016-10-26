@@ -127,6 +127,18 @@ public class ConfigurationTree
 		private final PortType type;
 		private final String location;
 		private final PortProtocol protocol;
+		private final String embeds;
+
+		public ExternalPort( String name, PortType type, String embeds )
+		{
+			this.name = name;
+			this.type = type;
+			this.embeds = embeds;
+			this.location = null;
+			this.protocol = null;
+
+			assert embeds != null;
+		}
 
 		public ExternalPort( String name, PortType type, String location, PortProtocol protocol )
 		{
@@ -134,9 +146,15 @@ public class ConfigurationTree
 			this.type = type;
 			this.location = location;
 			this.protocol = protocol;
+			this.embeds = null;
 
 			assert name != null;
 			assert type != null;
+		}
+
+		public String getEmbeds()
+		{
+			return embeds;
 		}
 
 		public String getName()
@@ -159,6 +177,11 @@ public class ConfigurationTree
 			return protocol;
 		}
 
+		public boolean isEmbedding()
+		{
+			return embeds != null;
+		}
+
 		@Override
 		public boolean equals( Object o )
 		{
@@ -170,7 +193,8 @@ public class ConfigurationTree
 			if ( !name.equals( that.name ) ) return false;
 			if ( type != that.type ) return false;
 			if ( location != null ? !location.equals( that.location ) : that.location != null ) return false;
-			return protocol != null ? protocol.equals( that.protocol ) : that.protocol == null;
+			if ( protocol != null ? !protocol.equals( that.protocol ) : that.protocol != null ) return false;
+			return embeds != null ? embeds.equals( that.embeds ) : that.embeds == null;
 
 		}
 
@@ -181,6 +205,7 @@ public class ConfigurationTree
 			result = 31 * result + type.hashCode();
 			result = 31 * result + ( location != null ? location.hashCode() : 0 );
 			result = 31 * result + ( protocol != null ? protocol.hashCode() : 0 );
+			result = 31 * result + ( embeds != null ? embeds.hashCode() : 0 );
 			return result;
 		}
 
@@ -192,6 +217,7 @@ public class ConfigurationTree
 					", type=" + type +
 					", location='" + location + '\'' +
 					", protocol=" + protocol +
+					", embeds='" + embeds + '\'' +
 					'}';
 		}
 	}

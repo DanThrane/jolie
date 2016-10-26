@@ -207,37 +207,48 @@ public class COLParser extends AbstractParser
 		name = token.content();
 		getToken();
 
-		assertToken( LCURLY, "expected beginning of port body" );
-		getToken();
+		if ( token.type() == EMBEDS ) {
+			getToken();
 
-		while ( token.type() != RCURLY ) {
-			if ( token.isKeyword( "Location" ) ) {
-				getToken();
-				eat( COLON, "expected ':'" );
+			assertToken( STRING, "expected embedding name" );
+			String embeds = token.content();
+			getToken();
+			return new ExternalPort( name, type, embeds );
+		} else if (token.type() == LCURLY) {
+			getToken();
 
-				assertToken( STRING, "expected service location" );
-				location = token.content();
-				getToken();
-			} else if ( token.isKeyword( "Protocol" ) ) {
-				getToken();
-				eat( COLON, "expected ':'" );
+			while ( token.type() != RCURLY ) {
+				if ( token.isKeyword( "Location" ) ) {
+					getToken();
+					eat( COLON, "expected ':'" );
 
-				assertToken( ID, "expected protocol type" );
-				protocolType = token.content();
-				getToken();
+					assertToken( STRING, "expected service location" );
+					location = token.content();
+					getToken();
+				} else if ( token.isKeyword( "Protocol" ) ) {
+					getToken();
+					eat( COLON, "expected ':'" );
 
-				if ( token.type() == LCURLY ) {
-					protocolProperties = parseInlineTreeExpression( new VoidExpressionNode( getContext() ) );
+					assertToken( ID, "expected protocol type" );
+					protocolType = token.content();
+					getToken();
+
+					if ( token.type() == LCURLY ) {
+						protocolProperties = parseInlineTreeExpression( new VoidExpressionNode( getContext() ) );
+					}
+				} else {
+					throwException( "expected 'Location' or 'Protocol' definition in port body" );
 				}
-			} else {
-				throwException( "expected 'Location' or 'Protocol' definition in port body" );
 			}
+
+			assertToken( RCURLY, "expected end of port body" );
+			getToken();
+
+			return new ExternalPort( name, type, location, new PortProtocol( protocolType, protocolProperties ) );
+		}  else {
+			throwException( "expected port body" );
+			return null;
 		}
-
-		assertToken( RCURLY, "expected end of port body" );
-		getToken();
-
-		return new ExternalPort( name, type, location, new PortProtocol( protocolType, protocolProperties ) );
 	}
 
 	private OLSyntaxNode parseValue() throws IOException, ParserException
