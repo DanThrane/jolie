@@ -24,6 +24,7 @@ package jolie.runtime.embedding;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.Future;
@@ -41,8 +42,15 @@ public class JolieServiceLoader extends EmbeddedServiceLoader
 	public static final String FOLDER_NAME_JPM_PACKAGES = "jpm_packages";
 	private final Interpreter interpreter;
 
+	public JolieServiceLoader( Expression channelDest, Interpreter currInterpreter, String servicePath,
+							   ParsingContext parsingContext )
+			throws IOException, CommandLineException
+	{
+		this( channelDest, currInterpreter, servicePath, parsingContext.source() );
+	}
+
 	public JolieServiceLoader ( Expression channelDest, Interpreter currInterpreter, String servicePath,
-								ParsingContext parsingContext )
+								 URI source )
 			throws IOException, CommandLineException
 	{
 		super( channelDest );
@@ -54,9 +62,9 @@ public class JolieServiceLoader extends EmbeddedServiceLoader
 		newArgs.add( currInterpreter.programDirectory().getAbsolutePath() );
 
 		List< Path > directoryComponents = new ArrayList<>();
-		Path contextPath = new File( parsingContext.source() ).toPath();
+		Path contextPath = new File( source ).toPath();
 		contextPath.forEach( directoryComponents::add );
-		if ( parsingContext.source().getScheme().equals( "file" ) &&
+		if ( source.getScheme().equals( "file" ) &&
 				directoryComponents.stream().anyMatch( it -> it.toString().equals( FOLDER_NAME_JPM_PACKAGES ) ) ) {
 			newArgs.addAll( getPackageIncludePaths( contextPath, directoryComponents ) );
 		}

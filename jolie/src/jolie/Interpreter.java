@@ -21,12 +21,7 @@
 
 package jolie;
 
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.PrintStream;
+import java.io.*;
 import java.lang.ref.WeakReference;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
@@ -58,13 +53,8 @@ import java.util.logging.Logger;
 
 import jolie.configuration.ConfigurationHolder;
 import jolie.lang.Constants;
-import jolie.lang.parse.OLParseTreeOptimizer;
-import jolie.lang.parse.OLParser;
-import jolie.lang.parse.ParserException;
-import jolie.lang.parse.Scanner;
-import jolie.lang.parse.SemanticException;
-import jolie.lang.parse.SemanticVerifier;
-import jolie.lang.parse.TypeChecker;
+import jolie.lang.parse.*;
+import jolie.lang.parse.ast.ConfigurationTree;
 import jolie.lang.parse.ast.Program;
 import jolie.monitoring.MonitoringEvent;
 import jolie.monitoring.events.MonitorAttachedEvent;
@@ -289,6 +279,7 @@ public class Interpreter
 	private final File programDirectory;
 	private OutputPort monitor = null;
 	private ConfigurationHolder configurationHolder = null;
+	private ConfigurationTree configurationTree = null;
 
 	public void setMonitor( OutputPort monitor )
 	{
@@ -829,7 +820,7 @@ public class Interpreter
 	}
     
     public Interpreter( String[] args, ClassLoader parentClassLoader, File programDirectory, boolean ignoreFile )
-		throws CommandLineException, FileNotFoundException, IOException
+			throws CommandLineException, FileNotFoundException, IOException
 	{
 		this.parentClassLoader = parentClassLoader;
 		this.configurationHolder = new ConfigurationHolder();
@@ -1261,6 +1252,23 @@ public class Interpreter
 			if ( check ) {
 				return false;
 			} else {
+				// TODO Where should configuration parsing and processing go?
+				// This definitely needs to run before the OOITBuilder. How should this work with --check?
+				if ( cmdParser.isRunningFromDeploymentConfiguration() ) {
+					File file = new File( cmdParser.deploymentFile() );
+					try ( FileInputStream fileInputStream = new FileInputStream( file ) ) {
+						COLParser parser = new COLParser( new Scanner( fileInputStream, file.toURI(),
+								cmdParser.charset() ), this.programDirectory );
+						try {
+							configurationTree = parser.parse();
+							System.out.println( "Parsed the appropriate configuration: " );
+							System.out.println( configurationTree );
+						} catch ( ParserException ex ) {
+							throw new InterpreterException( ex );
+						}
+					}
+				}
+
 				return (new OOITBuilder(
 					this,
 					program,

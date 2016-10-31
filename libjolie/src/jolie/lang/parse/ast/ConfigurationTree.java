@@ -11,6 +11,11 @@ public class ConfigurationTree
 		regions.add( region );
 	}
 
+	public List< Region > getRegions()
+	{
+		return Collections.unmodifiableList( regions );
+	}
+
 	@Override
 	public String toString()
 	{
@@ -54,6 +59,16 @@ public class ConfigurationTree
 		public void addConstant( ExternalConstant constant )
 		{
 			constants.add( constant );
+		}
+
+		public List< ExternalPort > getPorts()
+		{
+			return Collections.unmodifiableList( ports );
+		}
+
+		public List< ExternalConstant > getConstants()
+		{
+			return Collections.unmodifiableList( constants );
 		}
 
 		@Override

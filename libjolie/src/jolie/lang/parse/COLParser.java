@@ -75,7 +75,7 @@ public class COLParser extends AbstractParser
 		}
 	}
 
-	private void parse()
+	public ConfigurationTree parse()
 			throws IOException, ParserException
 	{
 		getToken();
@@ -89,6 +89,7 @@ public class COLParser extends AbstractParser
 		if ( t.isNot( EOF ) ) {
 			throwException( "Invalid token encountered" );
 		}
+		return configurationTree;
 	}
 
 	private void parseInclude() throws IOException, ParserException

@@ -79,7 +79,9 @@ public class CommandLineParser implements Closeable
         private final boolean check;
 	private final Level logLevel;
 	private File programDirectory = null;
-	
+	private String deploymentProfile = null;
+	private String deploymentFile = null;
+
 	/**
 	 * Returns the arguments passed to the JOLIE program.
 	 * @return the arguments passed to the JOLIE program.
@@ -473,6 +475,17 @@ public class CommandLineParser implements Closeable
 				optionsList.add( argsList.get( i ) );
 			} else if ( "--version".equals( argsList.get( i ) ) ) {
 				throw new CommandLineException( getVersionString() );
+			} else if ( "--deploy".equals( argsList.get( i ) ) ) {
+				optionsList.add( argsList.get( i ) );
+				i++;
+				deploymentProfile = argsList.get( i );
+				optionsList.add( argsList.get( i ) );
+				i++;
+				// TODO we should probably allow no file also, such that we can use just the defaults
+				deploymentFile = argsList.get( i );
+				optionsList.add( argsList.get( i ) );
+				// TODO We need to read the relevant package file and figure out what the main file is
+				olFilepath = "main.ol";
 			} else if (
 				argsList.get( i ).endsWith( ".ol" )
 				||
@@ -675,6 +688,21 @@ public class CommandLineParser implements Closeable
 	public String[] optionArgs()
 	{
 		return optionArgs;
+	}
+
+	public String deploymentProfile()
+	{
+		return deploymentProfile;
+	}
+
+	public String deploymentFile()
+	{
+		return deploymentFile;
+	}
+
+	public boolean isRunningFromDeploymentConfiguration()
+	{
+		return deploymentFile != null && deploymentProfile != null;
 	}
 
 	private String parseJapManifestForMainProgram( Manifest manifest, JarFile japFile )
