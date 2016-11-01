@@ -23,7 +23,14 @@
            </plugin>
         </plugins>
   </build>
-  <properties>
+    <dependencies>
+        <dependency>
+            <groupId>Jolie</groupId>
+            <artifactId>LibJolie</artifactId>
+            <version>1.0</version>
+        </dependency>
+    </dependencies>
+    <properties>
         <sonar.dynamicAnalysis>false</sonar.dynamicAnalysis>
   </properties>
 </project>

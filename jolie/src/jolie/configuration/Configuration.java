@@ -1,55 +1,79 @@
 package jolie.configuration;
 
+import jolie.configuration.ExternalConfigurationProcessor.ProcessedPort;
 import jolie.runtime.Value;
 
 import java.util.Map;
 
 public class Configuration
 {
-	private final Map< String, Value > inputPorts;
-	private final Map< String, Value > outputPorts;
+	private final String profileName;
+	private final String packageName;
+	private final Map< String, ProcessedPort > inputPorts;
+	private final Map< String, ProcessedPort > outputPorts;
 	private final Map< String, Value > constants;
 
-	public Configuration( Map< String, Value > inputPorts, Map< String, Value > outputPorts, Map< String, Value > constants )
+	public Configuration( String profileName, String packageName, Map< String, ProcessedPort > inputPorts, Map< String, ProcessedPort > outputPorts,
+						  Map< String, Value > constants )
 	{
+		this.profileName = profileName;
+		this.packageName = packageName;
 		this.inputPorts = inputPorts;
 		this.outputPorts = outputPorts;
 		this.constants = constants;
 	}
 
-	public Map< String, Value > getInputPorts()
+	public String getProfileName()
 	{
-		return inputPorts;
+		return profileName;
 	}
 
-	public Map< String, Value > getOutputPorts()
+	public String getPackageName()
 	{
-		return outputPorts;
-	}
-
-	public Map< String, Value > getConstants()
-	{
-		return constants;
+		return packageName;
 	}
 
 	public boolean hasInputPortLocation( String port )
 	{
-		return inputPorts.containsKey( port ) && inputPorts.get( port ).hasChildren( "location" );
+		return inputPorts.containsKey( port );
 	}
 
-	public boolean hasInputPortProtocol( String port )
+	public boolean hasInputPortProtocol( String portName )
 	{
-		return inputPorts.containsKey( port ) && inputPorts.get( port ).hasChildren( "protocol" );
+		ProcessedPort port = inputPorts.get( portName );
+		return port != null && port.getProtocolType() != null;
 	}
 
 	public boolean hasOutputPortLocation( String port )
 	{
-		return outputPorts.containsKey( port ) && outputPorts.get( port ).hasChildren( "location" );
+		return outputPorts.containsKey( port );
 	}
 
-	public boolean hasOutputPortProtocol( String port )
+	public boolean hasOutputPortProtocol( String portName )
 	{
-		return outputPorts.containsKey( port ) && outputPorts.get( port ).hasChildren( "protocol" );
+		ProcessedPort port = outputPorts.get( portName );
+		return port != null && port.getProtocolType() != null;
+	}
+
+	public boolean hasOutputPortEmbedding( String portName )
+	{
+		ProcessedPort port = outputPorts.get( portName );
+		return port != null && port.getEmbedding() != null;
+	}
+
+	public ProcessedPort getOutputPort( String portName )
+	{
+		return outputPorts.get( portName );
+	}
+
+	public ProcessedPort getInputPort( String portName )
+	{
+		return inputPorts.get( portName );
+	}
+
+	public Value getConstant( String constantName )
+	{
+		return constants.get( constantName );
 	}
 
 	@Override

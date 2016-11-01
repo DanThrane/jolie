@@ -222,7 +222,6 @@ import jolie.runtime.expression.VoidExpression;
 import jolie.runtime.typing.OneWayTypeDescription;
 import jolie.runtime.typing.RequestResponseTypeDescription;
 import jolie.runtime.typing.Type;
-import jolie.runtime.typing.TypeCastingException;
 import jolie.util.ArrayListMultiMap;
 import jolie.util.MultiMap;
 import jolie.util.Pair;
@@ -253,7 +252,8 @@ public class OOITBuilder implements OLVisitor
 		new HashMap<>();
 	private final Deque< OLSyntaxNode > lazyVisits = new LinkedList<>();	
 	private boolean firstPass = true;
-	private final ConfigurationHolder configurationHolder;
+	private final String configurationProfile;
+	private final Map<String, Configuration> configurationTree;
 
 	private static class AggregationConfiguration {
 		private final OutputPort defaultOutputPort;
@@ -277,7 +277,8 @@ public class OOITBuilder implements OLVisitor
 	 * @param program the Program to generate the interpretation tree from
 	 * @param isConstantMap
 	 * @param correlationFunctionInfo
-	 * @param configurationHolder
+	 * @param configurationProfile
+	 * @param configurationTree
 	 * @see Program
 	 */
 	public OOITBuilder (
@@ -285,12 +286,13 @@ public class OOITBuilder implements OLVisitor
 			Program program,
 			Map< String, Boolean > isConstantMap,
 			CorrelationFunctionInfo correlationFunctionInfo,
-			ConfigurationHolder configurationHolder ) {
+			String configurationProfile, Map<String, Configuration> configurationTree ) {
 		this.interpreter = interpreter;
 		this.program = new Program( program.context() );
 		this.isConstantMap = isConstantMap;
 		this.correlationFunctionInfo = correlationFunctionInfo;
-		this.configurationHolder = configurationHolder;
+		this.configurationProfile = configurationProfile;
+		this.configurationTree= configurationTree;
 
 		Map< String, TypeDefinition > builtInTypes = OLParser.createTypeDeclarationMap( program.context() );
 		this.program.children().addAll( builtInTypes.values() );
@@ -438,7 +440,7 @@ public class OOITBuilder implements OLVisitor
 		}
 		currentOutputPort = null;
 
-		Configuration configuration = configurationHolder.getConfiguration();
+		Configuration configuration = configurationTree.get( configurationProfile );
 
 		ProtocolConfiguration protocolConfig = getProtocolConfigurationForOutputPort( n, configuration );
 		URI location = getLocationForOutputPort( n, configuration );
@@ -462,10 +464,9 @@ public class OOITBuilder implements OLVisitor
 					NullProcess.getInstance();
 
 			return new ASTProtocolConfiguration( n.protocolId(), p);
-		} else if ( n.isExternal() && configuration.hasOutputPortProtocol( n.id() ) ) {
-			return new ExternalProtocolConfiguration(
-					configuration.getOutputPorts().get( n.id() ).getFirstChild( "protocol" )
-			);
+		} else if ( n.isExternal() && configuration.hasOutputPortProtocol( n.id() ) ||
+				configuration.hasOutputPortEmbedding( n.id() ) ) {
+			return new ExternalProtocolConfiguration( configuration.getOutputPort( n.id() ), interpreter, configurationTree );
 		} else {
 			return NullProtocolConfiguration.INSTANCE;
 		}
@@ -474,12 +475,17 @@ public class OOITBuilder implements OLVisitor
 	private URI getLocationForOutputPort( OutputPortInfo n, Configuration configuration )
 	{
 		if ( n.location() == null && n.isExternal() && configuration.hasOutputPortLocation( n.id() ) ) {
-			Value str = configuration.getOutputPorts().get( n.id() ).getFirstChild( "location" );
-			try {
-				return new URI( str.strValueStrict() );
-			} catch ( URISyntaxException | TypeCastingException e ) {
-				throw new IllegalStateException( "Unable to '" + str.strValue() +
-						"' parse external output port location for " + n.id(), e );
+			ExternalConfigurationProcessor.ProcessedPort outputPort = configuration.getOutputPort( n.id() );
+			if ( outputPort.getEmbedding() != null ) {
+				return null;
+			} else {
+				String location = outputPort.getLocation();
+				try {
+					return new URI( location );
+				} catch ( URISyntaxException e ) {
+					throw new IllegalStateException( "Unable to '" + location +
+							"' parse external output port location for " + n.id(), e );
+				}
 			}
 		} else {
 			return n.location();
@@ -545,7 +551,7 @@ public class OOITBuilder implements OLVisitor
 
 	public void visit( InputPortInfo n )
 	{
-		Configuration configuration = configurationHolder.getConfiguration();
+		Configuration configuration = configurationTree.get( configurationProfile );
 
 		currentPortInterface = new Interface( new HashMap<>(), new HashMap<>() );
 		for( OperationDeclaration op : n.operations() ) {
@@ -600,11 +606,11 @@ public class OOITBuilder implements OLVisitor
 	private URI getLocationForInputPort( InputPortInfo n, Configuration configuration )
 	{
 		if ( n.location() == null && n.isExternal() && configuration.hasInputPortLocation( n.id() ) ) {
-			Value str = configuration.getInputPorts().get( n.id() ).getFirstChild( "location" );
+			String location = configuration.getInputPort( n.id() ).getLocation();
 			try {
-				return new URI( str.strValueStrict() );
-			} catch ( URISyntaxException | TypeCastingException e ) {
-				throw new IllegalStateException( "Unable to '" + str.strValue() +
+				return new URI( location );
+			} catch ( URISyntaxException e ) {
+				throw new IllegalStateException( "Unable to '" + location +
 						"' parse external output port location for " + n.id(), e );
 			}
 		} else {
@@ -621,9 +627,7 @@ public class OOITBuilder implements OLVisitor
 
 			return new ASTProtocolConfiguration( n.protocolId(), p);
 		} else if ( n.isExternal() && configuration.hasInputPortProtocol( n.id() ) ) {
-			return new ExternalProtocolConfiguration(
-					configuration.getInputPorts().get( n.id() ).getFirstChild( "protocol" )
-			);
+			return new ExternalProtocolConfiguration( configuration.getInputPort( n.id() ), interpreter, configurationTree );
 		} else {
 			return NullProtocolConfiguration.INSTANCE;
 		}

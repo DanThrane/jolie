@@ -51,7 +51,9 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Logger;
 
+import jolie.configuration.Configuration;
 import jolie.configuration.ConfigurationHolder;
+import jolie.configuration.ExternalConfigurationProcessor;
 import jolie.lang.Constants;
 import jolie.lang.parse.*;
 import jolie.lang.parse.ast.ConfigurationTree;
@@ -278,8 +280,7 @@ public class Interpreter
 	private final String programFilename;
 	private final File programDirectory;
 	private OutputPort monitor = null;
-	private ConfigurationHolder configurationHolder = null;
-	private ConfigurationTree configurationTree = null;
+	private Map< String, Configuration > configurationTree = null;
 
 	public void setMonitor( OutputPort monitor )
 	{
@@ -823,7 +824,6 @@ public class Interpreter
 			throws CommandLineException, FileNotFoundException, IOException
 	{
 		this.parentClassLoader = parentClassLoader;
-		this.configurationHolder = new ConfigurationHolder();
 
 		cmdParser = new CommandLineParser( args, parentClassLoader, ignoreFile );
 		classLoader = cmdParser.jolieClassLoader();
@@ -1260,22 +1260,24 @@ public class Interpreter
 						COLParser parser = new COLParser( new Scanner( fileInputStream, file.toURI(),
 								cmdParser.charset() ), this.programDirectory );
 						try {
-							configurationTree = parser.parse();
+							ConfigurationTree parsedTree = parser.parse();
+							this.configurationTree = new ExternalConfigurationProcessor( parsedTree ).process();
 							System.out.println( "Parsed the appropriate configuration: " );
-							System.out.println( configurationTree );
+							System.out.println( parsedTree );
 						} catch ( ParserException ex ) {
 							throw new InterpreterException( ex );
 						}
 					}
 				}
 
-				return (new OOITBuilder(
-					this,
-					program,
-					semanticVerifier.isConstantMap(),
-					semanticVerifier.correlationFunctionInfo(),
-					configurationHolder ))
-					.build();
+				return new OOITBuilder(
+						this,
+						program,
+						semanticVerifier.isConstantMap(),
+						semanticVerifier.correlationFunctionInfo(),
+						cmdParser.deploymentProfile(),
+						configurationTree
+				).build();
 			}
 
 		} catch( IOException | ParserException | ClassNotFoundException e ) {

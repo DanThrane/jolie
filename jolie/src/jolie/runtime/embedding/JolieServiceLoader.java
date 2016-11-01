@@ -54,12 +54,11 @@ public class JolieServiceLoader extends EmbeddedServiceLoader
 			throws IOException, CommandLineException
 	{
 		super( channelDest );
-		final String[] ss = servicePathSplitPattern.split( servicePath );
-		final String[] options = currInterpreter.optionArgs();
+		final ArrayList< String > serviceOptions = new ArrayList<>( Arrays.asList( servicePathSplitPattern.split( servicePath ) ) );
+		final ArrayList< String > options = new ArrayList<>( Arrays.asList( currInterpreter.optionArgs() ) );
 
 		List< String > newArgs = new ArrayList<>();
-		newArgs.add( "-i" );
-		newArgs.add( currInterpreter.programDirectory().getAbsolutePath() );
+
 
 		List< Path > directoryComponents = new ArrayList<>();
 		Path contextPath = new File( source ).toPath();
@@ -67,10 +66,28 @@ public class JolieServiceLoader extends EmbeddedServiceLoader
 		if ( source.getScheme().equals( "file" ) &&
 				directoryComponents.stream().anyMatch( it -> it.toString().equals( FOLDER_NAME_JPM_PACKAGES ) ) ) {
 			newArgs.addAll( getPackageIncludePaths( contextPath, directoryComponents ) );
+		} else {
+			newArgs.add( "-i" );
+			newArgs.add( currInterpreter.programDirectory().getAbsolutePath() );
 		}
 
-		newArgs.addAll( Arrays.asList( options ) );
-		newArgs.addAll( Arrays.asList( ss ) );
+		if ( serviceOptions.contains( "--deploy" ) ) {
+			// If serviceOptions contains deployment options we need to remove them from interpreter options
+			int i = options.indexOf( "--deploy" );
+			if ( i != -1 ) {
+				if ( options.size() < i + 2 ) {
+					// Initial command line arguments are malformed, bail.
+					throw new IllegalStateException( "Malformed command line arguments found when embedding " +
+							"external service" );
+				}
+				options.remove( i + 2 );
+				options.remove( i + 1 );
+				options.remove( i );
+			}
+		}
+
+		newArgs.addAll( options );
+		newArgs.addAll( serviceOptions );
 
 		interpreter = new Interpreter(
 				newArgs.toArray( new String[0] ),
@@ -98,7 +115,7 @@ public class JolieServiceLoader extends EmbeddedServiceLoader
 
 		File directory = contextPath.toFile().getParentFile();
 		result.add( "-i" );
-		result.add( directory.getAbsolutePath() );
+		result.add( directory.getAbsolutePath() ) ;
 
 		for ( int i = directoryComponents.size() - 1; i >= 0 ; i-- ) {
 			Path component = directoryComponents.get( i );

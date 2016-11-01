@@ -268,7 +268,6 @@ public class COLParser extends AbstractParser
 	{
 		OLSyntaxNode result;
 		switch ( token.type() ) {
-			// TODO At least handle negative numbers too
 			// TODO Should we allow multiplication, addition, subtraction, division
 			case STRING:
 				result = new ConstantStringExpression( getContext(), token.content() );

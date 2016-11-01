@@ -167,6 +167,11 @@ public abstract class EmbeddedServiceLoader
 		private final String servicePath;
 		private final ParsingContext parsingContext;
 
+		public ExternalEmbeddedServiceConfiguration( Constants.EmbeddedServiceType type, String servicePath )
+		{
+			this ( type, servicePath, null );
+		}
+
 		/**
 		 * @param type           Type of embedded service, cannot be INTERNAL
 		 * @param servicePath    Path of service

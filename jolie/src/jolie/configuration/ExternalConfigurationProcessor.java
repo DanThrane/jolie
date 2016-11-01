@@ -13,10 +13,11 @@ import jolie.util.Pair;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Processes configuration coming from an external source.
- *
+ * <p>
  * This will take the .col AST. From this it will gather which packages are
  * used and merge these together. Expression nodes will then be fully
  * evaluated such that they are ready to be used. The result this will be
@@ -33,34 +34,60 @@ public class ExternalConfigurationProcessor
 		this.tree = tree;
 	}
 
-	public void process()
+	public Map< String, Configuration > process()
 	{
-
+		return tree.getRegions().stream()
+				.map( this::evaluateValues )
+				.collect( Collectors.toMap( Configuration::getProfileName, it -> it ) );
 	}
 
 	private Configuration evaluateValues( Region region )
 	{
-		Map< String, Value > inputPorts = new HashMap<>();
-		Map< String, Value > outputPorts = new HashMap<>();
+		Map< String, ProcessedPort > inputPorts = new HashMap<>();
+		Map< String, ProcessedPort > outputPorts = new HashMap<>();
 		Map< String, Value > constants = new HashMap<>();
 
-		for ( ConfigurationTree.ExternalPort port : region.getPorts() ) {
-			if ( port.isEmbedding() ) {
+		region.getPorts().stream().map( this::processPort ).forEach( it -> {
+			switch ( it.portType ) {
+				case INPUT:
+					inputPorts.put( it.getName(), it );
+					break;
+				case OUTPUT:
+					outputPorts.put( it.getName(), it );
+					break;
+			}
+		} );
 
-			} else {
-				Value portValue = Value.create();
-				portValue.getNewChild( "location" ).setValue( port.getLocation() );
-				Value protocol = portValue.getNewChild( "protocol" );
-				protocol.setValue( port.getProtocol().getType() );
-				OLSyntaxNode properties = port.getProtocol().getProperties();
-				if ( properties != null ) {
-					Value value = evaluateNode( properties );
-					value.assignValue( protocol );
-					portValue.getFirstChild( "protocol" ).setValue( value );
+		region.getConstants().stream()
+				.map( this::processConstant )
+				.forEach( it -> constants.put( it.key(), it.value() ) );
+
+		return new Configuration( region.getProfileName(), region.getPackageName(), inputPorts, outputPorts,
+				constants );
+	}
+
+	private ProcessedPort processPort( ConfigurationTree.ExternalPort port )
+	{
+		if ( port.isEmbedding() ) {
+			return new ProcessedPort( port.getName(), port.getEmbeds(), port.getLocation(), port.getType() );
+		} else {
+			String location = port.getLocation();
+			String protocolType = null;
+			Value protocolProperties = null;
+			ConfigurationTree.PortProtocol protocol = port.getProtocol();
+			if ( protocol != null ) {
+				protocolType = protocol.getType();
+				if ( protocol.getProperties() != null ) {
+					protocolProperties = evaluateNode( protocol.getProperties() );
 				}
 			}
+			return new ProcessedPort( port.getName(), protocolType, protocolProperties, location, port.getType() );
 		}
-		return null;
+	}
+
+	private Pair< String, Value > processConstant( ConfigurationTree.ExternalConstant constant )
+	{
+		return new Pair<>( constant.getName(), evaluateNode( constant.getExpressionNode() ) );
 	}
 
 	private Value evaluateNode( OLSyntaxNode node )
@@ -71,7 +98,7 @@ public class ExternalConfigurationProcessor
 
 			Pair< VariablePath, Expression >[] assignments = new Pair[ inlineNode.assignments().length ];
 			int i = 0;
-			for( Pair< VariablePathNode, OLSyntaxNode > pair : inlineNode.assignments() ) {
+			for ( Pair< VariablePathNode, OLSyntaxNode > pair : inlineNode.assignments() ) {
 				assignments[ i++ ] = new Pair<>(
 						buildVariablePath( pair.key() ),
 						evaluateNode( pair.value() )
@@ -88,8 +115,11 @@ public class ExternalConfigurationProcessor
 			return Value.create( ( (ConstantIntegerExpression) node ).value() );
 		} else if ( node instanceof ConstantStringExpression ) {
 			return Value.create( ( (ConstantStringExpression) node ).value() );
+		} else if ( node instanceof VoidExpressionNode ) {
+			return Value.create();
 		} else {
-			throw new IllegalStateException( "Unsupported node in configuration format. This is a bug." );
+			throw new IllegalStateException( "Unsupported node type '" + node.getClass() +
+					"' in configuration format. This is a bug." );
 		}
 	}
 
@@ -97,11 +127,66 @@ public class ExternalConfigurationProcessor
 	{
 		Pair< Expression, Expression >[] internalPath = new Pair[ path.path().size() ];
 		int i = 0;
-		for( Pair< OLSyntaxNode, OLSyntaxNode > pair : path.path() ) {
+		for ( Pair< OLSyntaxNode, OLSyntaxNode > pair : path.path() ) {
 			Expression keyExpr = evaluateNode( pair.key() );
 			Expression value = pair.value() != null ? evaluateNode( pair.value() ) : null;
 			internalPath[ i++ ] = new Pair<>( keyExpr, value );
 		}
 		return new VariablePath( internalPath );
+	}
+
+	public static class ProcessedPort
+	{
+		private final String name;
+		private final String location;
+		private final String embedding;
+		private final String protocolType;
+		private final Value protocolProperties;
+		private final ConfigurationTree.PortType portType;
+
+		public ProcessedPort( String name, String embedding, String location, ConfigurationTree.PortType portType )
+		{
+			this.name = name;
+			this.embedding = embedding;
+			this.location = location;
+			this.portType = portType;
+			this.protocolProperties = null;
+			this.protocolType = null;
+		}
+
+		public ProcessedPort( String name, String protocolType, Value protocolProperties, String location, ConfigurationTree.PortType portType )
+		{
+			this.name = name;
+			this.portType = portType;
+			this.embedding = null;
+			this.protocolType = protocolType;
+			this.protocolProperties = protocolProperties;
+			this.location = location;
+		}
+
+		public String getLocation()
+		{
+			return location;
+		}
+
+		public String getEmbedding()
+		{
+			return embedding;
+		}
+
+		public String getProtocolType()
+		{
+			return protocolType;
+		}
+
+		public Value getProtocolProperties()
+		{
+			return protocolProperties;
+		}
+
+		public String getName()
+		{
+			return name;
+		}
 	}
 }
