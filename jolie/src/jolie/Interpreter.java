@@ -1209,7 +1209,13 @@ public class Interpreter
 				if ( this.internalServiceProgram != null ) {
 					program = this.internalServiceProgram;
 				} else {
-					final OLParser olParser = new OLParser( new Scanner( cmdParser.programStream(), cmdParser.programFilepath().toURI(), cmdParser.charset() ), includePaths, classLoader );
+					final OLParser olParser = new OLParser(
+							new Scanner( cmdParser.programStream(), cmdParser.programFilepath().toURI(),
+									cmdParser.charset() ),
+							includePaths,
+							cmdParser.packageLocation(),
+							classLoader
+					);
 
 					olParser.putConstants( cmdParser.definedConstants() );
 					program = olParser.parse();

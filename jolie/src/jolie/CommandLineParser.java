@@ -76,11 +76,14 @@ public class CommandLineParser implements Closeable
 	private final boolean isProgramCompiled;
 	private final boolean typeCheck;
 	private final boolean tracer;
-        private final boolean check;
+	private final boolean check;
 	private final Level logLevel;
 	private File programDirectory = null;
 	private String deploymentProfile = null;
 	private String deploymentFile = null;
+	private String packageLocation = null;
+	private String packageSelf = null;
+	private Map< String, String > entryPoints = new HashMap<>();
 
 	/**
 	 * Returns the arguments passed to the JOLIE program.
@@ -486,6 +489,23 @@ public class CommandLineParser implements Closeable
 				optionsList.add( argsList.get( i ) );
 				// TODO We need to read the relevant package file and figure out what the main file is
 				olFilepath = "main.ol";
+			} else if ( "--pkg-folder".equals( argsList.get( i ) )) {
+				optionsList.add( argsList.get( i ) );
+				i++;
+				optionsList.add( argsList.get( i ) );
+				packageLocation = argsList.get( i );
+			} else if ( "--pkg-self".equals( argsList.get( i ) ) ) {
+				optionsList.add( argsList.get( i ) );
+				i++;
+				optionsList.add( argsList.get( i ) );
+				packageSelf = argsList.get( i );
+			} else if ( argsList.get( i ).startsWith( "--main." ) ) {
+				optionsList.add( argsList.get( i ) );
+				String packageName = argsList.get( i ).substring( "--main.".length() + 1 );
+				i++;
+				optionsList.add( argsList.get( i ) );
+				String entryPoint = argsList.get( i );
+				entryPoints.put( packageName, entryPoint );
 			} else if (
 				argsList.get( i ).endsWith( ".ol" )
 				||
@@ -548,7 +568,8 @@ public class CommandLineParser implements Closeable
 	
 		connectionsLimit = cLimit;
 		connectionsCache = cCache;
-        
+
+		// TODO The remaining part has nothing to do with command line parsing, should be moved into a separate phase
 		List< URL > urls = new ArrayList<>();
 		for( String path : libList ) {
 			if ( path.contains( "!/" ) && !path.startsWith( "jap:" ) && !path.startsWith( "jar:" ) ) {
@@ -618,14 +639,16 @@ public class CommandLineParser implements Closeable
 	private List< URL > searchForPackageLibraries() throws IOException
 	{
 		List< URL > result = new ArrayList<>();
-		File packagesDirectory = new File( "jpm_packages" );
-		if ( packagesDirectory.exists() ) {
-			File[] files = packagesDirectory.listFiles();
-			if ( files != null ) {
-				for (File packageDirectory : files ) {
-					File libDirectory = new File( packageDirectory, "lib" );
-					if ( libDirectory.exists() ) {
-						extractAndAddJarUrlsFromDirectory( result, libDirectory );
+		if ( packageLocation != null ) {
+			File packagesDirectory = new File( packageLocation );
+			if ( packagesDirectory.exists() ) {
+				File[] files = packagesDirectory.listFiles();
+				if ( files != null ) {
+					for (File packageDirectory : files ) {
+						File libDirectory = new File( packageDirectory, "lib" );
+						if ( libDirectory.exists() ) {
+							extractAndAddJarUrlsFromDirectory( result, libDirectory );
+						}
 					}
 				}
 			}
@@ -703,6 +726,11 @@ public class CommandLineParser implements Closeable
 	public boolean isRunningFromDeploymentConfiguration()
 	{
 		return deploymentFile != null && deploymentProfile != null;
+	}
+
+	public String packageLocation()
+	{
+		return packageLocation;
 	}
 
 	private String parseJapManifestForMainProgram( Manifest manifest, JarFile japFile )

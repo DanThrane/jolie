@@ -138,10 +138,16 @@ public class OLParser extends AbstractParser
 	private final Map< String, TypeDefinition > definedTypes;
 	private final Set< URI > includedFiles = new HashSet<>();
 	private final ClassLoader classLoader;
+	private final String packageLocation;
 
 	private InterfaceExtenderDefinition currInterfaceExtender = null;
 
 	public OLParser( Scanner scanner, String[] includePaths, ClassLoader classLoader )
+	{
+		this( scanner, includePaths, null, classLoader );
+	}
+
+	public OLParser( Scanner scanner, String[] includePaths, String packageLocation, ClassLoader classLoader )
 	{
 		super( scanner );
 		ParsingContext context = new URIParsingContext( scanner.source(), 0 );
@@ -149,6 +155,7 @@ public class OLParser extends AbstractParser
 		this.includePaths = includePaths;
 		this.classLoader = classLoader;
 		this.definedTypes = createTypeDeclarationMap( context );
+		this.packageLocation = packageLocation;
 	}
 
 	public void putConstants( Map< String, Scanner.Token > constantsToPut )
@@ -631,7 +638,12 @@ public class OLParser extends AbstractParser
 	private IncludeFile findPackageInclude ( final String packageString, final String includeString )
 			throws ParserException, FileNotFoundException
 	{
-		File packageDirectory = new File( "jpm_packages", packageString );
+		if ( packageLocation == null) {
+			throwException( "Attempting to make a package include, but no package location was given. " +
+					"Did you forget to pass '--pkg-folder'?" );
+		}
+
+		File packageDirectory = new File( packageLocation, packageString );
 
 		if ( !packageDirectory.exists() ) {
 			throwException( "Package " + packageString + " does not exist! [Expected " +
