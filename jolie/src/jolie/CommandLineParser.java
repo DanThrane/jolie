@@ -115,8 +115,8 @@ public class CommandLineParser implements Closeable
 	{
 		return tracer;
 	}
-        
-        	/**
+
+	/**
 	 * Returns
 	 * <code>true</code> if the check option has been specified, false
 	 * otherwise.
@@ -294,16 +294,6 @@ public class CommandLineParser implements Closeable
 		}
 	}
 
-	/**
-	 * Returns <code>true</code> if the verbose option has been specified, false otherwise.
-	 * @return <code>true</code> if the verbose option has been specified, false otherwise
-	 */
-/*	public boolean verbose()
-	{
-		return verbose;
-	}
-*/
-	
 	/**
 	 * Returns the type of correlation algorithm that has been specified.
 	 * @return the type of correlation algorithm that has been specified.
@@ -560,8 +550,7 @@ public class CommandLineParser implements Closeable
 		}
 		optionArgs = optionsList.toArray( new String[ optionsList.size() ] );
 		arguments = programArgumentsList.toArray( new String[ programArgumentsList.size() ] );
-		// whitepages = whitepageList.toArray( new String[ whitepageList.size() ] );
-		
+
 		if ( olFilepath == null && !ignoreFile) {
 			throw new CommandLineException( "Input file not specified." );
 		}
@@ -589,9 +578,7 @@ public class CommandLineParser implements Closeable
 			} else {
 				try {
 					urls.add( new URL( path ) );
-				} catch( MalformedURLException e ) {
-//					e.printStackTrace();
-				}
+				} catch( MalformedURLException e ) { }
 			}
 		}
 		urls.addAll( searchForPackageLibraries() );
@@ -655,25 +642,6 @@ public class CommandLineParser implements Closeable
 		}
 		return result;
 	}
-	
-	/**
-	 * Adds the standard include and library subdirectories of the program to
-	 * the classloader paths.
-	 */
-	/* private void addProgramDirectories( List< String > includeList, List< String > libList, String olFilepath )
-	{
-		File olFile = new File( olFilepath );
-		if ( olFile.exists() ) {
-			File parent = olFile.getParentFile();
-			if ( parent != null && parent.isDirectory() ) {
-				String parentPath = parent.getAbsolutePath();
-				includeList.add( parentPath );
-				includeList.add( parentPath + "/include" );
-				libList.add( parentPath );
-				libList.add( parentPath + "/lib" );
-			}
-		}
-	} */
 
 	/**
 	 * Returns the directory in which the main program is located.
@@ -770,7 +738,7 @@ public class CommandLineParser implements Closeable
 	private Collection< String > parseJapManifestForOptions( Manifest manifest )
 		throws IOException
 	{
-		Collection< String > optionList = new ArrayList();
+		Collection< String > optionList = new ArrayList<>();
 		if ( manifest != null ) {
 			Attributes attrs = manifest.getMainAttributes();
 			String options = attrs.getValue(Constants.Manifest.OPTIONS );
@@ -788,7 +756,7 @@ public class CommandLineParser implements Closeable
 	}
 	
 	private GetOLStreamResult getOLStream( String olFilepath, LinkedList< String > includePaths, ClassLoader classLoader )
-		throws FileNotFoundException, IOException
+		throws IOException
 	{
 		GetOLStreamResult result = new GetOLStreamResult();
 
@@ -865,19 +833,15 @@ public class CommandLineParser implements Closeable
 		 * @return the new index at which the {@link CommandLineParser} should continue parsing the arguments.
 		 * @throws CommandLineException if the argument is invalid or not recognized.
 		 */
-		public int onUnrecognizedArgument( List< String > argumentsList, int index )
+		int onUnrecognizedArgument( List< String > argumentsList, int index )
 			throws CommandLineException;
 
 		/**
 		 * Default {@link ArgumentHandler}. It just throws a {@link CommandLineException} when it finds an unrecognised option.
 		 */
-		public static ArgumentHandler DEFAULT_ARGUMENT_HANDLER =
-			new ArgumentHandler() {
-				public int onUnrecognizedArgument( List< String > argumentsList, int index )
-					throws CommandLineException
-				{
+		ArgumentHandler DEFAULT_ARGUMENT_HANDLER =
+				( argumentsList, index ) -> {
 					throw new CommandLineException( "Unrecognized command line option: " + argumentsList.get( index ) );
-				}
-			};
+				};
 	}
 }
