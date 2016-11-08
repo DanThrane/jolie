@@ -280,7 +280,7 @@ public class Interpreter
 	private final String programFilename;
 	private final File programDirectory;
 	private OutputPort monitor = null;
-	private Map< String, Configuration > configurationTree = null;
+	private Map< String, Configuration > configurationTree = new HashMap<>();
 
 	public void setMonitor( OutputPort monitor )
 	{

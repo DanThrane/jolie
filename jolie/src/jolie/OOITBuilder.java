@@ -292,7 +292,8 @@ public class OOITBuilder implements OLVisitor
 		this.isConstantMap = isConstantMap;
 		this.correlationFunctionInfo = correlationFunctionInfo;
 		this.configurationProfile = configurationProfile;
-		this.configurationTree= configurationTree;
+		this.configurationTree = configurationTree;
+
 
 		Map< String, TypeDefinition > builtInTypes = OLParser.createTypeDeclarationMap( program.context() );
 		this.program.children().addAll( builtInTypes.values() );
@@ -464,12 +465,17 @@ public class OOITBuilder implements OLVisitor
 					NullProcess.getInstance();
 
 			return new ASTProtocolConfiguration( n.protocolId(), p);
-		} else if ( n.isExternal() && configuration.hasOutputPortProtocol( n.id() ) ||
-				configuration.hasOutputPortEmbedding( n.id() ) ) {
+		} else if ( hasExternalOutputPortConfiguration( n, configuration ) ) {
 			return new ExternalProtocolConfiguration( configuration.getOutputPort( n.id() ), interpreter, configurationTree );
 		} else {
 			return NullProtocolConfiguration.INSTANCE;
 		}
+	}
+
+	private boolean hasExternalOutputPortConfiguration( OutputPortInfo n, Configuration configuration )
+	{
+		return configuration != null && n.isExternal() &&
+				( configuration.hasOutputPortProtocol( n.id() ) || configuration.hasOutputPortEmbedding( n.id() ) );
 	}
 
 	private URI getLocationForOutputPort( OutputPortInfo n, Configuration configuration )
