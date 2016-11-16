@@ -21,35 +21,23 @@
 
 package jolie;
 
-import java.io.BufferedInputStream;
-import java.io.ByteArrayInputStream;
-import java.io.Closeable;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.jar.Attributes;
-import java.util.jar.JarFile;
-import java.util.jar.Manifest;
 import java.util.logging.Level;
-import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
 import jolie.jap.JapURLConnection;
 import jolie.lang.Constants;
+import jolie.lang.parse.ParserException;
 import jolie.lang.parse.Scanner;
 import jolie.runtime.correlation.CorrelationEngine;
-import jolie.util.Helpers;
+import jolie.util.Pair;
 
 /**
  * A parser for JOLIE's command line arguments,
@@ -58,32 +46,87 @@ import jolie.util.Helpers;
  */
 public class CommandLineParser implements Closeable
 {
-	private final static Pattern PATH_SEPARATOR_PATTERN = Pattern.compile( jolie.lang.Constants.pathSeparator );
-	private final static Pattern OPTION_SEPARATOR_PATTERN = Pattern.compile( " " );
-
-	private final int connectionsLimit;
-	private final int connectionsCache;
-	private final CorrelationEngine.Type correlationAlgorithmType;
-	private final String[] includePaths;
-	private final String[] optionArgs;
-	private final URL[] libURLs;
+	private final Arguments arguments;
+	private final Configurator configurator;
+	private final ProgramPaths paths;
+	private final URI programURI;
 	private final InputStream programStream;
-	private String charset = null;
-	private final File programFilepath;
-	private final String[] arguments;
-	private final Map< String, Scanner.Token > constants = new HashMap< String, Scanner.Token >();
-	private final JolieClassLoader jolieClassLoader;
-	private final boolean isProgramCompiled;
-	private final boolean typeCheck;
-	private final boolean tracer;
-	private final boolean check;
-	private final Level logLevel;
-	private File programDirectory = null;
-	private String deploymentProfile = null;
-	private String deploymentFile = null;
-	private String packageLocation = null;
-	private String packageSelf = null;
-	private Map< String, String > entryPoints = new HashMap<>();
+
+	/**
+	 * Constructor
+	 * @param args the command line arguments
+	 * @param parentClassLoader the ClassLoader to use for finding resources
+	 * @throws jolie.CommandLineException if the command line is not valid or asks for simple information. (like --help and --version)
+	 * @throws java.io.IOException
+	 */
+	public CommandLineParser( String[] args, ClassLoader parentClassLoader )
+			throws CommandLineException, IOException
+	{
+		this( args, parentClassLoader, ArgumentHandler.DEFAULT_ARGUMENT_HANDLER );
+	}
+
+	/**
+	 * Constructor
+	 * @param args the command line arguments
+	 * @param parentClassLoader the ClassLoader to use for finding resources
+	 * @param argHandler
+	 * @throws CommandLineException
+	 * @throws IOException
+	 */
+	public CommandLineParser( String[] args, ClassLoader parentClassLoader, ArgumentHandler argHandler )
+			throws CommandLineException, IOException
+	{
+		this(args, parentClassLoader, argHandler, false);
+	}
+
+	/**
+	 * Constructor
+	 * @param args the command line arguments
+	 * @param parentClassLoader the ClassLoader to use for finding resources
+	 * @param ignoreFile do not open file that is given as parameter (used for internal services)
+	 * @throws CommandLineException
+	 * @throws IOException
+	 */
+	public CommandLineParser( String[] args, ClassLoader parentClassLoader, boolean ignoreFile )
+			throws CommandLineException, IOException
+	{
+		this( args, parentClassLoader, ArgumentHandler.DEFAULT_ARGUMENT_HANDLER, ignoreFile );
+	}
+
+	/**
+	 * Constructor
+	 * @param args the command line arguments
+	 * @param parentClassLoader the ClassLoader to use for finding resources
+	 * @param argHandler
+	 * @param ignoreFile do not open file that is given as parameter (used for internal services)
+	 * @throws CommandLineException
+	 * @throws IOException
+	 */
+	public CommandLineParser( String[] args, ClassLoader parentClassLoader, ArgumentHandler argHandler,
+							  boolean ignoreFile )
+			throws CommandLineException, IOException
+	{
+		arguments = new Arguments( this, argHandler );
+		arguments.parse( args );
+		configurator = new Configurator( arguments );
+		try {
+			configurator.configure();
+		} catch ( ParserException e ) {
+			throw new CommandLineException( e.getMessage() );
+		}
+		paths = new ProgramPaths( arguments, configurator, parentClassLoader );
+		paths.configure();
+
+		if ( !ignoreFile ) {
+			Pair< URI, InputStream > program = paths.openProgram();
+			programURI = program.key();
+			programStream = new BufferedInputStream( program.value() );
+		} else {
+			// I'm really not sure what the correct values would be here
+			programURI = null;
+			programStream = new ByteArrayInputStream( new byte[]{} );
+		}
+	}
 
 	/**
 	 * Returns the arguments passed to the JOLIE program.
@@ -91,7 +134,7 @@ public class CommandLineParser implements Closeable
 	 */
 	public String[] arguments()
 	{
-		return arguments;
+		return arguments.getProgramArguments().toArray( new String[0] );
 	}
 	
 	/**
@@ -100,7 +143,7 @@ public class CommandLineParser implements Closeable
 	 */
 	public Level logLevel()
 	{
-		return logLevel;
+		return arguments.getLogLevel();
 	}
 	
 	/**
@@ -113,7 +156,7 @@ public class CommandLineParser implements Closeable
 	 */
 	public boolean tracer()
 	{
-		return tracer;
+		return arguments.isTracer();
 	}
 
 	/**
@@ -126,7 +169,7 @@ public class CommandLineParser implements Closeable
 	 */
 	public boolean check()
 	{
-		return check;
+		return arguments.isCheck();
 	}
 
 	/**
@@ -135,16 +178,34 @@ public class CommandLineParser implements Closeable
 	 */
 	public boolean isProgramCompiled()
 	{
-		return isProgramCompiled;
+		return configurator.getMainName().endsWith( ".olc" );
 	}
     
 	/**
 	 * Returns the file path of the JOLIE program to execute.
 	 * @return the file path of the JOLIE program to execute
+	 * @deprecated Use {@link CommandLineParser#programFileURI()} instead
 	 */
+	@Deprecated
 	public File programFilepath()
 	{
-		return programFilepath;
+		if (programURI == null) { // TODO This shouldn't be needed
+			return null;
+		}
+		return new File( programURI );
+	}
+
+	public String getProgramName()
+	{
+		if ( programURI == null ) {
+			return "internal";
+		} else {
+			return programURI.getPath();
+		}
+	}
+
+	public URI programFileURI() {
+		return programURI;
 	}
 
 	/**
@@ -162,7 +223,7 @@ public class CommandLineParser implements Closeable
 	 */
 	public String charset()
 	{
-		return charset;
+		return arguments.getCharset();
 	}
 	
 	/**
@@ -180,7 +241,7 @@ public class CommandLineParser implements Closeable
 	 */
 	public URL[] libURLs()
 	{
-		return libURLs;
+		return paths.getLibURLs();
 	}
 
 	/**
@@ -189,7 +250,10 @@ public class CommandLineParser implements Closeable
 	 */
 	public String[] includePaths()
 	{
-		return includePaths;
+		return paths.getIncludePaths().stream()
+				.map( File::getAbsolutePath )
+				.collect( Collectors.toList() )
+				.toArray( new String[0] );
 	}
 
 	/**
@@ -199,7 +263,7 @@ public class CommandLineParser implements Closeable
 	 */
 	public int connectionsLimit()
 	{
-		return connectionsLimit;
+		return arguments.getConnectionsLimit();
 	}
 
 	/**
@@ -209,7 +273,7 @@ public class CommandLineParser implements Closeable
 	 */
 	public int connectionsCache()
 	{
-		return connectionsCache;
+		return arguments.getConnectionsCache();
 	}
 	
 	private static String getOptionString( String option, String description )
@@ -228,7 +292,7 @@ public class CommandLineParser implements Closeable
 	 */
 	public Map< String, Scanner.Token > definedConstants()
 	{
-		return constants;
+		return arguments.getConstants();
 	}
 
 	/**
@@ -268,32 +332,6 @@ public class CommandLineParser implements Closeable
 		return helpBuilder.toString();
 	}
 
-	private void parseCommandLineConstant( String input )
-		throws IOException
-	{
-		try {
-			// for command line options use the system's default charset (null)
-			Scanner scanner = new Scanner( new ByteArrayInputStream( input.getBytes() ), new URI( "urn:CommandLine" ), null );
-			Scanner.Token token = scanner.getToken();
-			if ( token.is( Scanner.TokenType.ID ) ) {
-				String id = token.content();
-				token = scanner.getToken();
-				if ( token.isNot( Scanner.TokenType.ASSIGN ) ) {
-					throw new IOException( "expected = after constant identifier " + id + ", found token type " + token.type() );
-				}
-				token = scanner.getToken();
-				if ( token.isValidConstant() == false ) {
-					throw new IOException( "expected constant value for constant identifier " + id + ", found token type " + token.type() );
-				}
-				constants.put( id, token );
-			} else {
-				throw new IOException( "expected constant identifier, found token type " + token.type() );
-			}
-		} catch( URISyntaxException e ) {
-			throw new IOException( e );
-		}
-	}
-
 	/**
 	 * Returns the type of correlation algorithm that has been specified.
 	 * @return the type of correlation algorithm that has been specified.
@@ -301,346 +339,7 @@ public class CommandLineParser implements Closeable
 	 */
 	public CorrelationEngine.Type correlationAlgorithmType()
 	{
-		return correlationAlgorithmType;
-	}
-
-	/**
-	 * Constructor
-	 * @param args the command line arguments
-	 * @param parentClassLoader the ClassLoader to use for finding resources
-	 * @throws jolie.CommandLineException if the command line is not valid or asks for simple information. (like --help and --version)
-	 * @throws java.io.IOException
-	 */
-	public CommandLineParser( String[] args, ClassLoader parentClassLoader )
-		throws CommandLineException, IOException
-	{
-		this( args, parentClassLoader, ArgumentHandler.DEFAULT_ARGUMENT_HANDLER );
-	}
-    
-    /**
-	 * Constructor
-	 * @param args the command line arguments
-	 * @param parentClassLoader the ClassLoader to use for finding resources
-	 * @param argHandler
-	 * @throws CommandLineException
-	 * @throws IOException 
-	 */
-    public CommandLineParser( String[] args, ClassLoader parentClassLoader, ArgumentHandler argHandler )
-        throws CommandLineException, IOException
-    {
-        this(args, parentClassLoader, argHandler, false);
-    }
-	
-    /**
-	 * Constructor
-	 * @param args the command line arguments
-	 * @param parentClassLoader the ClassLoader to use for finding resources
-	 * @param ignoreFile do not open file that is given as parameter (used for internal services)
-	 * @throws CommandLineException
-	 * @throws IOException 
-	 */
-    public CommandLineParser( String[] args, ClassLoader parentClassLoader, boolean ignoreFile )
-        throws CommandLineException, IOException
-    {
-        this( args, parentClassLoader, ArgumentHandler.DEFAULT_ARGUMENT_HANDLER, ignoreFile );
-    }
-	
-    /**
-	 * Constructor
-	 * @param args the command line arguments
-	 * @param parentClassLoader the ClassLoader to use for finding resources
-	 * @param argHandler
-     * @param ignoreFile do not open file that is given as parameter (used for internal services)
-	 * @throws CommandLineException
-	 * @throws IOException 
-	 */
-	public CommandLineParser( String[] args, ClassLoader parentClassLoader, ArgumentHandler argHandler, boolean ignoreFile )
-		throws CommandLineException, IOException
-	{
-		List< String > argsList = new ArrayList<>( args.length );
-		Collections.addAll( argsList, args );
-
-		String csetAlgorithmName = "simple";
-		List< String > optionsList = new ArrayList<>();
-		boolean bTracer = false;
-		boolean bCheck = false;
-		boolean bTypeCheck = false; // Default for typecheck
-		Level lLogLevel = Level.INFO;
-		List< String > programArgumentsList = new ArrayList<>();
-		LinkedList< String > includeList = new LinkedList<>();
-		List< String > libList = new ArrayList<>();
-		int cLimit = -1;
-		int cCache = 100;
-		String pwd = new File( "" ).getCanonicalPath();
-		includeList.add( pwd );
-		includeList.add( "include" );
-		libList.add( pwd );
-		libList.add( "ext" );
-		libList.add( "lib" );
-		String olFilepath = null;
-		String japUrl = null;
-		int i = 0;
-		// First parse Jolie arguments with the Jolie program argument
-		for( ; i < argsList.size() && olFilepath == null; i++ ) {
-			if ( "--help".equals( argsList.get( i ) ) || "-h".equals( argsList.get( i ) ) ) {
-				throw new CommandLineException( getHelpString() );
-			} else if ( "-C".equals( argsList.get( i ) ) ) {
-				optionsList.add( argsList.get( i ) );
-				i++;
-				try {
-					parseCommandLineConstant( argsList.get( i ) );
-				} catch( IOException e ) {
-					throw new CommandLineException( "Invalid constant definition, reason: " + e.getMessage() );
-				}
-				optionsList.add( argsList.get( i ) );
-			} else if ( "-i".equals( argsList.get( i ) ) ) {
-				optionsList.add( argsList.get( i ) );
-				i++;
-				if ( japUrl != null ) {
-					argsList.set( i, argsList.get( i ).replace( "$JAP$", japUrl ) );
-				}
-				String[] tmp = PATH_SEPARATOR_PATTERN.split( argsList.get( i ) );
-				Collections.addAll( includeList, tmp );
-				optionsList.add( argsList.get( i ) );
-			} else if ( "-l".equals( argsList.get( i ) ) ) {
-				optionsList.add( argsList.get( i ) );
-				i++;
-				if ( japUrl != null ) {
-					argsList.set( i, argsList.get( i ).replace( "$JAP$", japUrl ) );
-				}
-				String[] tmp = PATH_SEPARATOR_PATTERN.split( argsList.get( i ) );
-				Collections.addAll( libList, tmp );
-				optionsList.add( argsList.get( i ) );
-			} else if ( "--connlimit".equals( argsList.get( i ) ) ) {
-				optionsList.add( argsList.get( i ) );
-				i++;
-				cLimit = Integer.parseInt( argsList.get( i ) );
-				optionsList.add( argsList.get( i ) );
-			} else if ( "--conncache".equals( argsList.get( i ) ) ) {
-				optionsList.add( argsList.get( i ) );
-				i++;
-				cCache = Integer.parseInt( argsList.get( i ) );
-				optionsList.add( argsList.get( i ) );
-			} else if ( "--correlationAlgorithm".equals( argsList.get( i ) ) ) {
-				optionsList.add( argsList.get( i ) );
-				i++;
-				csetAlgorithmName = argsList.get( i );
-				optionsList.add( argsList.get( i ) );
-			} else if ( "--typecheck".equals( argsList.get( i ) ) ) {
-				optionsList.add( argsList.get( i ) );
-				i++;
-				String typeCheckStr = argsList.get( i );
-				optionsList.add( argsList.get( i ) );
-				if ( "false".equals( typeCheckStr ) ) {
-					bTypeCheck = false;
-				} else if ( "true".equals( typeCheckStr ) ) {
-					bTypeCheck = true;
-				}
-			} else if ( "--check".equals( argsList.get( i ) ) ) {
-				optionsList.add( argsList.get( i ) );
-				bCheck = true;
-			} else if ( "--trace".equals( argsList.get( i ) ) ) {
-				optionsList.add( argsList.get( i ) );
-				bTracer = true;
-			} else if ( "--log".equals( argsList.get( i ) ) ) {
-				optionsList.add( argsList.get( i ) );
-				i++;
-				String level = argsList.get( i );
-				switch( level ) {
-				case "severe":
-					lLogLevel = Level.SEVERE;
-					break;
-				case "warning":
-					lLogLevel = Level.WARNING;
-					break;
-				case "fine":
-					lLogLevel = Level.FINE;
-					break;
-				case "info":
-					lLogLevel = Level.INFO;
-					break;
-				}
-				optionsList.add( argsList.get( i ) );
-			} else if ( "--charset".equals( argsList.get( i ) ) ) {
-				optionsList.add( argsList.get( i ) );
-				i++;
-				charset = argsList.get( i );
-				optionsList.add( argsList.get( i ) );
-			} else if ( "--version".equals( argsList.get( i ) ) ) {
-				throw new CommandLineException( getVersionString() );
-			} else if ( "--deploy".equals( argsList.get( i ) ) ) {
-				optionsList.add( argsList.get( i ) );
-				i++;
-				deploymentProfile = argsList.get( i );
-				optionsList.add( argsList.get( i ) );
-				i++;
-				// TODO we should probably allow no file also, such that we can use just the defaults
-				deploymentFile = argsList.get( i );
-				optionsList.add( argsList.get( i ) );
-				// TODO We need to read the relevant package file and figure out what the main file is
-				olFilepath = "main.ol";
-			} else if ( "--pkg-folder".equals( argsList.get( i ) )) {
-				optionsList.add( argsList.get( i ) );
-				i++;
-				optionsList.add( argsList.get( i ) );
-				packageLocation = argsList.get( i );
-			} else if ( "--pkg-self".equals( argsList.get( i ) ) ) {
-				optionsList.add( argsList.get( i ) );
-				i++;
-				optionsList.add( argsList.get( i ) );
-				packageSelf = argsList.get( i );
-			} else if ( argsList.get( i ).startsWith( "--main." ) ) {
-				optionsList.add( argsList.get( i ) );
-				String packageName = argsList.get( i ).substring( "--main.".length() + 1 );
-				i++;
-				optionsList.add( argsList.get( i ) );
-				String entryPoint = argsList.get( i );
-				entryPoints.put( packageName, entryPoint );
-			} else if (
-				argsList.get( i ).endsWith( ".ol" )
-				||
-				argsList.get( i ).endsWith( ".iol" )
-				||
-				argsList.get( i ).endsWith( ".olc" )
-			) {
-				if ( olFilepath == null ) {
-					olFilepath = argsList.get( i );
-				} else {
-					programArgumentsList.add( argsList.get( i ) );
-				}
-			} else if ( argsList.get( i ).endsWith( ".jap" ) ) {
-				if ( olFilepath == null ) {
-					String japFilename = new File( argsList.get( i ) ).getCanonicalPath();
-					JarFile japFile = new JarFile( japFilename );
-					Manifest manifest = japFile.getManifest();
-					olFilepath = parseJapManifestForMainProgram( manifest, japFile );
-					if ( Helpers.getOperatingSystemType() == Helpers.OSType.Windows ) {
-						olFilepath = olFilepath.replace( "\\", "/" );
-					}
-					libList.add( japFilename );
-					Collection< String> japOptions = parseJapManifestForOptions( manifest );
-					argsList.addAll( i + 1, japOptions );
-					japUrl = japFilename + "!";
-					programDirectory = new File( japFilename ).getParentFile();
-				} else {
-					programArgumentsList.add( argsList.get( i ) );
-				}
-			} else {
-				// It's an unrecognized argument
-				int newIndex = argHandler.onUnrecognizedArgument( argsList, i );
-				if ( newIndex == i ) {
-					// The handler didn't change the index.
-					// We abort so to avoid infinite looping.
-					throw new CommandLineException( "Unrecognized command line option: " + argsList.get( i ) );
-				}
-				i = newIndex;
-			}
-		}
-		// Now parse the command line arguments for the Jolie program
-		for( ; i < argsList.size() && olFilepath != null; i++ ) {
-			programArgumentsList.add( argsList.get( i ) );
-		}
-
-		typeCheck = bTypeCheck;
-		logLevel = lLogLevel;
-
-		correlationAlgorithmType = CorrelationEngine.Type.fromString( csetAlgorithmName );
-		if ( correlationAlgorithmType == null ) {
-			throw new CommandLineException( "Unrecognized correlation algorithm: " + csetAlgorithmName );
-		}
-		optionArgs = optionsList.toArray( new String[ optionsList.size() ] );
-		arguments = programArgumentsList.toArray( new String[ programArgumentsList.size() ] );
-
-		if ( olFilepath == null && !ignoreFile) {
-			throw new CommandLineException( "Input file not specified." );
-		}
-	
-		connectionsLimit = cLimit;
-		connectionsCache = cCache;
-
-		// TODO The remaining part has nothing to do with command line parsing, should be moved into a separate phase
-		List< URL > urls = new ArrayList<>();
-		for( String path : libList ) {
-			if ( path.contains( "!/" ) && !path.startsWith( "jap:" ) && !path.startsWith( "jar:" ) ) {
-				path = "jap:file:" + path;
-			}
-			if ( path.endsWith( ".jar" ) || path.endsWith( ".jap" ) ) {
-				if ( path.startsWith( "jap:" ) ) {
-					urls.add( new URL( path + "!/" ) );
-				} else {
-					urls.add( new URL( "jap:file:" + path + "!/" ) );
-				}
-			} else if ( new File( path ).isDirectory() ) {
-				urls.add( new URL( "file:" + path + "/" ) );
-			} else if ( path.endsWith( Constants.fileSeparator + "*" ) ) {
-				File dir = new File( path.substring( 0, path.length() - 2 ) );
-				extractAndAddJarUrlsFromDirectory( urls, dir );
-			} else {
-				try {
-					urls.add( new URL( path ) );
-				} catch( MalformedURLException e ) { }
-			}
-		}
-		urls.addAll( searchForPackageLibraries() );
-		urls.add( new URL( "file:/" ) );
-		libURLs = urls.toArray( new URL[]{} );
-		jolieClassLoader = new JolieClassLoader( libURLs, parentClassLoader );
-		
-		GetOLStreamResult olResult = getOLStream( olFilepath, includeList, jolieClassLoader );
-
-		if ( olResult.stream == null ) {
-            if ( ignoreFile ) {
-                olResult.source = olFilepath;
-                olResult.stream = new ByteArrayInputStream( new byte[]{} );
-            } else if ( olFilepath.endsWith( ".ol" ) ) {
-				// try to read the compiled version of the ol file
-				olFilepath += "c";
-				olResult = getOLStream( olFilepath, includeList, jolieClassLoader );
-				if ( olResult.stream == null ) {
-					throw new FileNotFoundException( olFilepath );
-				}
-			} else {
-				throw new FileNotFoundException( olFilepath );
-			}
-		}
-
-		isProgramCompiled = olFilepath.endsWith( ".olc" );
-		tracer = bTracer && !isProgramCompiled;
-		check = bCheck && !isProgramCompiled;
-		programFilepath = new File( olResult.source );
-		programStream = olResult.stream;
-
-		includePaths = includeList.toArray( new String[]{} );
-	}
-
-	private void extractAndAddJarUrlsFromDirectory ( List< URL > urls, File dir ) throws IOException
-	{
-		String jars[] = dir.list( ( File directory, String filename ) -> filename.endsWith( ".jar" ) );
-		if ( jars != null ) {
-			for ( String jarPath : jars ) {
-				urls.add( new URL( "jar:file:" + dir.getCanonicalPath() + '/' + jarPath + "!/" ) );
-			}
-		}
-	}
-
-	private List< URL > searchForPackageLibraries() throws IOException
-	{
-		List< URL > result = new ArrayList<>();
-		if ( packageLocation != null ) {
-			File packagesDirectory = new File( packageLocation );
-			if ( packagesDirectory.exists() ) {
-				File[] files = packagesDirectory.listFiles();
-				if ( files != null ) {
-					for (File packageDirectory : files ) {
-						File libDirectory = new File( packageDirectory, "lib" );
-						if ( libDirectory.exists() ) {
-							extractAndAddJarUrlsFromDirectory( result, libDirectory );
-						}
-					}
-				}
-			}
-		}
-		return result;
+		return arguments.getCorrelationAlgorithmType();
 	}
 
 	/**
@@ -649,7 +348,12 @@ public class CommandLineParser implements Closeable
 	 */
 	public File programDirectory()
 	{
-		return programDirectory;
+		// TODO Need a clear definition of this. How to handle URLs?
+		if ( programURI != null && programURI.getScheme().equals( "file" ) ) {
+			File file = new File( programURI );
+			return file.getParentFile();
+		}
+		return paths.locateServiceRoot();
 	}
 
 	/**
@@ -658,7 +362,7 @@ public class CommandLineParser implements Closeable
 	 */
 	public boolean typeCheck()
 	{
-		return typeCheck;
+		return arguments.isTypeCheck();
 	}
 
 	/**
@@ -667,7 +371,7 @@ public class CommandLineParser implements Closeable
 	 */
 	public JolieClassLoader jolieClassLoader()
 	{
-		return jolieClassLoader;
+		return paths.getJolieClassLoader();
 	}
 
 	/**
@@ -678,145 +382,27 @@ public class CommandLineParser implements Closeable
 	 */
 	public String[] optionArgs()
 	{
-		return optionArgs;
+		return arguments.getOptionsList().toArray( new String[0] );
 	}
 
 	public String deploymentProfile()
 	{
-		return deploymentProfile;
+		return arguments.getDeploymentProfile();
 	}
 
 	public String deploymentFile()
 	{
-		return deploymentFile;
+		return arguments.getDeploymentFile();
 	}
 
 	public boolean isRunningFromDeploymentConfiguration()
 	{
-		return deploymentFile != null && deploymentProfile != null;
+		return deploymentFile() != null && deploymentProfile() != null;
 	}
 
 	public String packageLocation()
 	{
-		return packageLocation;
-	}
-
-	private String parseJapManifestForMainProgram( Manifest manifest, JarFile japFile )
-	{
-		String filepath = null;
-		if ( manifest != null ) { // See if a main program is defined through a Manifest attribute
-			Attributes attrs = manifest.getMainAttributes();
-			filepath = attrs.getValue(Constants.Manifest.MAIN_PROGRAM );
-		}
-
-		if ( filepath == null ) { // Main program not defined, we make <japName>.ol and <japName>.olc guesses
-			String name = new File( japFile.getName() ).getName();
-			filepath = new StringBuilder()
-						.append( name.subSequence( 0, name.lastIndexOf( ".jap" ) ) )
-						.append( ".ol" )
-						.toString();
-			if ( japFile.getEntry( filepath ) == null ) {
-				filepath = null;
-				filepath = filepath + 'c';
-				if ( japFile.getEntry( filepath ) == null ) {
-					filepath = null;
-				}
-			}
-		}
-
-		if ( filepath != null ) {
-			filepath = new StringBuilder()
-						.append( "jap:file:" )
-						.append( japFile.getName() )
-						.append( "!/" )
-						.append( filepath )
-						.toString();
-		}
-		return filepath;
-	}
-
-	private Collection< String > parseJapManifestForOptions( Manifest manifest )
-		throws IOException
-	{
-		Collection< String > optionList = new ArrayList<>();
-		if ( manifest != null ) {
-			Attributes attrs = manifest.getMainAttributes();
-			String options = attrs.getValue(Constants.Manifest.OPTIONS );
-			if ( options != null ) {
-				String[] tmp = OPTION_SEPARATOR_PATTERN.split( options );
-				Collections.addAll( optionList, tmp );
-			}
-		}
-		return optionList;
-	}
-	
-	private static class GetOLStreamResult {
-		private String source;
-		private InputStream stream;
-	}
-	
-	private GetOLStreamResult getOLStream( String olFilepath, LinkedList< String > includePaths, ClassLoader classLoader )
-		throws IOException
-	{
-		GetOLStreamResult result = new GetOLStreamResult();
-
-		URL olURL = null;
-		File f = new File( olFilepath ).getAbsoluteFile();
-		if ( f.exists() ) {
-			result.stream = new FileInputStream( f );
-			result.source = f.toURI().getSchemeSpecificPart();
-			programDirectory = f.getParentFile();
-		} else {
-			for( int i = 0; i < includePaths.size() && result.stream == null; i++ ) {
-				f = new File(
-							includePaths.get( i ) +
-							jolie.lang.Constants.fileSeparator +
-							olFilepath
-						);
-				if ( f.exists() ) {
-					f = f.getAbsoluteFile();
-					result.stream = new FileInputStream( f );
-					result.source = f.toURI().getSchemeSpecificPart();
-					programDirectory = f.getParentFile();
-				}
-			}
-			if ( result.stream == null ) {
-				try {
-					olURL = new URL( olFilepath );
-					result.stream = olURL.openStream();
-					result.source = olFilepath;
-					if ( result.stream == null ) {
-						throw new MalformedURLException();
-					}
-				} catch( MalformedURLException e ) {
-					olURL = classLoader.getResource( olFilepath );
-					if ( olURL != null ) {
-						result.stream = olURL.openStream();
-						result.source = olFilepath;
-					}
-				}
-				if ( programDirectory == null && olURL != null && olURL.getPath() != null ) {
-					// Try to extract the parent directory of the JAP/JAR library file
-					try {
-						File urlFile = new File( JapURLConnection.nestingSeparatorPattern.split( new URI( olURL.getPath() ).getSchemeSpecificPart() )[0] ).getAbsoluteFile();
-						if ( urlFile.exists() ) {
-							programDirectory = urlFile.getParentFile();
-						}
-					} catch( URISyntaxException e ) {}
-				}
-			}
-		}
-		if ( result.stream != null ) {
-			if ( f.exists() && f.getParent() != null ) {
-				includePaths.addFirst( f.getParent() );
-			} else if ( olURL != null ) {
-				String urlString = olURL.toString();
-				includePaths.addFirst( urlString.substring( 0, urlString.lastIndexOf( '/' ) + 1 ) );
-			}
-			
-			result.stream = new BufferedInputStream( result.stream );
-		}
-		return result;
+		return arguments.getPackageLocation();
 	}
 
 	/**

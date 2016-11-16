@@ -41,6 +41,10 @@ define calcMaxLength
 	maxLength = 0;
 	for( i = 0, i < #dirs, i++ ) {
 		list@File( listRequest )( list );
+		valueToPrettyString@StringUtils(list)(prettyList);
+		valueToPrettyString@StringUtils(listRequest)(prettyListRequest);
+		println@Console(prettyList)();
+		println@Console(prettyListRequest)();
 		for( k = 0, k < #list.result, k++ ) {
 			length@StringUtils( list.result[k] )( len );
 			if ( len > maxLength ) {
@@ -63,6 +67,9 @@ define printTestName
 main
 {
 	loadRequest.type = "Jolie";
+	valueToPrettyString@StringUtils(args)(prettyArgs);
+	println@Console("Got the following arguments:")();
+	println@Console(prettyArgs)();
 	if ( is_defined( args[0] ) ) {
 		listRequest.regex = args[0]
 	} else {

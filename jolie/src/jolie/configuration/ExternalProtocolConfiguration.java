@@ -10,7 +10,6 @@ import jolie.runtime.VariablePath;
 import jolie.runtime.embedding.EmbeddedServiceLoadingException;
 import jolie.runtime.embedding.JolieServiceLoader;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
@@ -46,8 +45,7 @@ public class ExternalProtocolConfiguration implements ProtocolConfiguration
 						interpreter,
 						// TODO Need to know which config file to load from
 						// TODO Do we always want to pass configuration from the root directory?
-						"--deploy " + configuration.getProfileName() + " " + "deployment.col",
-						new File( "jpm_packages/" + configuration.getPackageName()).toURI()
+						"--deploy " + configuration.getProfileName() + " " + "deployment.col"
 				);
 				loader.load();
 			} catch ( IOException | CommandLineException | EmbeddedServiceLoadingException e ) {

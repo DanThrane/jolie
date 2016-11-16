@@ -24,7 +24,6 @@ package jolie.runtime.embedding;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.URI;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.Future;
@@ -32,7 +31,6 @@ import java.util.regex.Pattern;
 
 import jolie.CommandLineException;
 import jolie.Interpreter;
-import jolie.lang.parse.context.ParsingContext;
 import jolie.runtime.expression.Expression;
 
 
@@ -42,49 +40,16 @@ public class JolieServiceLoader extends EmbeddedServiceLoader
 	public static final String FOLDER_NAME_JPM_PACKAGES = "jpm_packages";
 	private final Interpreter interpreter;
 
-	public JolieServiceLoader( Expression channelDest, Interpreter currInterpreter, String servicePath,
-							   ParsingContext parsingContext )
-			throws IOException, CommandLineException
-	{
-		this( channelDest, currInterpreter, servicePath, parsingContext.source() );
-	}
-
-	public JolieServiceLoader ( Expression channelDest, Interpreter currInterpreter, String servicePath,
-								 URI source )
+	public JolieServiceLoader( Expression channelDest, Interpreter currInterpreter, String servicePath )
 			throws IOException, CommandLineException
 	{
 		super( channelDest );
 		final ArrayList< String > serviceOptions = new ArrayList<>( Arrays.asList( servicePathSplitPattern.split( servicePath ) ) );
 		final ArrayList< String > options = new ArrayList<>( Arrays.asList( currInterpreter.optionArgs() ) );
-
 		List< String > newArgs = new ArrayList<>();
 
-
-		List< Path > directoryComponents = new ArrayList<>();
-		Path contextPath = new File( source ).toPath();
-		contextPath.forEach( directoryComponents::add );
-		if ( source.getScheme().equals( "file" ) &&
-				directoryComponents.stream().anyMatch( it -> it.toString().equals( FOLDER_NAME_JPM_PACKAGES ) ) ) {
-			newArgs.addAll( getPackageIncludePaths( contextPath, directoryComponents ) );
-		} else {
-			newArgs.add( "-i" );
-			newArgs.add( currInterpreter.programDirectory().getAbsolutePath() );
-		}
-
-		if ( serviceOptions.contains( "--deploy" ) ) {
-			// If serviceOptions contains deployment options we need to remove them from interpreter options
-			int i = options.indexOf( "--deploy" );
-			if ( i != -1 ) {
-				if ( options.size() < i + 2 ) {
-					// Initial command line arguments are malformed, bail.
-					throw new IllegalStateException( "Malformed command line arguments found when embedding " +
-							"external service" );
-				}
-				options.remove( i + 2 );
-				options.remove( i + 1 );
-				options.remove( i );
-			}
-		}
+		newArgs.add( "-i" );
+		newArgs.add( currInterpreter.programDirectory().getAbsolutePath() );
 
 		newArgs.addAll( options );
 		newArgs.addAll( serviceOptions );

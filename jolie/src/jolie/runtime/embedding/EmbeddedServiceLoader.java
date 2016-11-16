@@ -31,6 +31,9 @@ import jolie.runtime.Value;
 import jolie.runtime.VariablePath;
 import jolie.runtime.expression.Expression;
 
+import java.io.File;
+import java.net.URI;
+
 public abstract class EmbeddedServiceLoader
 {
 	private final Expression channelDest;
@@ -59,8 +62,10 @@ public abstract class EmbeddedServiceLoader
 						ret = new JavaServiceLoader( channelDest, externalConfiguration.servicePath(), interpreter );
 						break;
 					case JOLIE:
-						ret = new JolieServiceLoader( channelDest, interpreter, externalConfiguration.servicePath(),
-								externalConfiguration.parsingContext() );
+						ParsingContext parsingContext = externalConfiguration.parsingContext();
+						URI source = parsingContext != null ? parsingContext.source() : new File( "." ).toURI();
+						ret = new JolieServiceLoader( channelDest, interpreter, externalConfiguration.servicePath()
+						);
 						break;
 					default:
 						String serviceType = configuration.type().toString();
