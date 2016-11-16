@@ -53,9 +53,11 @@ public class ExternalProtocolConfiguration implements ProtocolConfiguration
 			}
 			return Collections.emptyList();
 		} else {
-			Value protocolValue = port.getProtocolProperties().clone();
-			protocolValue.setValue( port.getProtocolType() );
+			Value protocolValue = port.getProtocolProperties() != null ?
+					port.getProtocolProperties().clone() :
+					Value.create();
 
+			protocolValue.setValue( port.getProtocolType() );
 			return Collections.singletonList( new DeepCopyProcess( protocolVariablePath, protocolValue ) );
 		}
 	}

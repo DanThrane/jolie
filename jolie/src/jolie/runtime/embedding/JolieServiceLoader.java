@@ -61,55 +61,6 @@ public class JolieServiceLoader extends EmbeddedServiceLoader
 		);
 	}
 
-	/**
-	 * We have special handling of packages. We add the following entries to the include path:
-	 * <p>
-	 * <ul>
-	 * <li>The root of the package</li>
-	 * <li>The include folder at the root of the package</li>
-	 * <li>The folder which contains the embedding statement (to allow for relative includes)</li>
-	 * </ul>
-	 *
-	 * @param contextPath         The complete context path
-	 * @param directoryComponents The path components of the parsing context
-	 * @return A list of include paths
-	 */
-	private List< String > getPackageIncludePaths ( Path contextPath, List< Path > directoryComponents )
-	{
-		List< String > result = new ArrayList<>();
-
-		File directory = contextPath.toFile().getParentFile();
-		result.add( "-i" );
-		result.add( directory.getAbsolutePath() ) ;
-
-		for ( int i = directoryComponents.size() - 1; i >= 0 ; i-- ) {
-			Path component = directoryComponents.get( i );
-			if ( component.toString().equals( FOLDER_NAME_JPM_PACKAGES ) ) {
-				if ( i + 1 >= directoryComponents.size() ) {
-					throw new IllegalStateException( "Cannot find package include path (invalid path)" );
-				}
-
-				// For some reason the root is stripped when we do subpath. Not sure this is the right way to do things
-				// TODO Test on other operating systems
-				File packageRoot = contextPath.getRoot()
-						.resolve( contextPath.subpath( 0, i + 2 ) ).toAbsolutePath().toFile();
-
-				result.add( "-i" );
-				result.add( packageRoot.getAbsolutePath() );
-
-				File packageIncludeDirectory = new File( packageRoot, "include" );
-				if ( packageIncludeDirectory.exists() ) {
-					result.add( "-i" );
-					result.add( packageIncludeDirectory.getAbsolutePath() );
-				}
-
-				return result;
-			}
-		}
-
-		throw new IllegalStateException( "Cannot find package include path (invalid path)" );
-	}
-
 	public void load ()
 			throws EmbeddedServiceLoadingException
 	{

@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
 
+import jolie.configuration.Configuration;
 import jolie.jap.JapURLConnection;
 import jolie.lang.Constants;
 import jolie.lang.parse.ParserException;
@@ -403,6 +404,11 @@ public class CommandLineParser implements Closeable
 	public String packageLocation()
 	{
 		return arguments.getPackageLocation();
+	}
+
+	public Map< String, Configuration > getExternalConfiguration()
+	{
+		return configurator.getExternalConfiguration();
 	}
 
 	/**

@@ -52,47 +52,78 @@ public class Configurator
 			arguments.addOptions( 0, japOptions );
 		}
 
-		if ( arguments.getDeploymentFile() != null ) {
-			externalConfiguration = parseExternalConfiguration();
-
-			String packageSelf = arguments.getPackageSelf();
-			mainName = arguments.getEntryPoints().get( packageSelf ); // This won't work for dependencies
-		} else if ( arguments.getPackageSelf() != null ) {
-			// TODO Parse (default) configuration if --pkg-self is provided.
-			// We need to parse default configuration if --pkg-self is passed. This essentially means that we're deploying
-			// that package!
-
-			// TODO Set mainName for when --pkg-self is provided
-			String entryPoint = arguments.getEntryPoints().get( arguments.getPackageSelf() );
-			if ( entryPoint == null ) {
-				throw new CommandLineException( "Missing entry point for package. Was told that this package is: '" +
-						arguments.getPackageSelf() + "'. Found no such entry point." );
-			}
-			mainName = entryPoint;
+		if ( arguments.getPackageSelf() != null ) {
+			parsePackageMainEntry();
+			parseExtConfiguration();
 		}
 
 		validateState();
+	}
+
+	private void parseExtConfiguration() throws IOException, CommandLineException
+	{
+		File deploymentFile = null;
+		if ( arguments.getDeploymentFile() == null ) {
+			File defaultConfigFile = new File( getPackageRoot(), "default.col" );
+			if ( defaultConfigFile.exists() ) {
+				deploymentFile = defaultConfigFile;
+			}
+		} else {
+			deploymentFile = new File( arguments.getDeploymentFile() );
+		}
+
+		if ( deploymentFile != null ) {
+			if ( deploymentFile.exists() ) {
+				try ( FileInputStream fileInputStream = new FileInputStream( deploymentFile ) ) {
+					COLParser parser = new COLParser( new Scanner( fileInputStream, deploymentFile.toURI(),
+							arguments.getCharset() ), deploymentFile.getParentFile() );
+					try {
+						ConfigurationTree parsedTree = parser.parse();
+						ExternalConfigurationProcessor tree = new ExternalConfigurationProcessor( parsedTree );
+						externalConfiguration = tree.process();
+
+						System.out.println( "Parsed the appropriate configuration: " );
+						System.out.println( parsedTree );
+					} catch ( ParserException ex ) {
+						throw new IllegalStateException( "Unable to parse external configuration.", ex );
+					}
+				}
+			} else if ( arguments.getDeploymentFile() != null ) {
+				throw new CommandLineException( "Could not find deployment file '" + deploymentFile + "'" );
+			}
+		}
+	}
+
+	private void parsePackageMainEntry() throws CommandLineException
+	{
+		String entryPoint = arguments.getEntryPoints().get( arguments.getPackageSelf() );
+		if ( entryPoint == null ) {
+			throw new CommandLineException( "Missing entry point for package. Was told that this package is: '" +
+					arguments.getPackageSelf() + "'. Found no such entry point." );
+		}
+		mainName = entryPoint;
+	}
+
+	private File getPackageRoot()
+	{
+		String packageSelf = arguments.getPackageSelf();
+		if ( packageSelf == null ) { // Old behavior
+			return new File( "." );
+		}
+
+		String packageRoot = arguments.getPackageRoot();
+		if ( packageSelf.equals( packageRoot ) ) {
+			return new File( "." ); // We're launching the service at the working directory
+		} else {
+			// Launching a dependency (from the dependency folder)
+			return new File( arguments.getPackageLocation(), packageSelf );
+		}
 	}
 
 	private void validateState() throws CommandLineException
 	{
 		if ( mainName == null ) {
 			throw new CommandLineException( "Missing main file" );
-		}
-	}
-
-	private Map< String, Configuration > parseExternalConfiguration() throws IOException, ParserException
-	{
-		File file = new File( arguments.getDeploymentFile() );
-		try ( FileInputStream fileInputStream = new FileInputStream( file ) ) {
-			COLParser parser = new COLParser(
-					new Scanner( fileInputStream, file.toURI(), arguments.getCharset() ),
-					file.getParentFile()
-			);
-			ConfigurationTree parsedTree = parser.parse();
-			System.out.println( "Parsed the appropriate configuration: " );
-			System.out.println( parsedTree );
-			return new ExternalConfigurationProcessor( parsedTree ).process();
 		}
 	}
 
@@ -148,5 +179,10 @@ public class Configurator
 	public String getMainName()
 	{
 		return mainName;
+	}
+
+	public Map< String, Configuration > getExternalConfiguration()
+	{
+		return externalConfiguration;
 	}
 }

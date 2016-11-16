@@ -31,7 +31,7 @@ public class Arguments
 	private String programFilePath = null;
 	private Level logLevel = Level.INFO;
 	private String packageRoot = null;
-	private String deploymentProfile = null;
+	private String deploymentProfile = "default";
 	private String deploymentFile = null;
 	private String packageLocation = null;
 	private String packageSelf = null;

@@ -21,42 +21,9 @@
 
 package jolie;
 
-import java.io.*;
-import java.lang.ref.WeakReference;
-import java.net.URISyntaxException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.PriorityQueue;
-import java.util.Queue;
-import java.util.Timer;
-import java.util.TimerTask;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
-import java.util.logging.Logger;
-
-import jolie.configuration.Configuration;
-import jolie.configuration.ConfigurationHolder;
-import jolie.configuration.ExternalConfigurationProcessor;
 import jolie.lang.Constants;
 import jolie.lang.parse.*;
-import jolie.lang.parse.ast.ConfigurationTree;
+import jolie.lang.parse.Scanner;
 import jolie.lang.parse.ast.Program;
 import jolie.monitoring.MonitoringEvent;
 import jolie.monitoring.events.MonitorAttachedEvent;
@@ -71,14 +38,7 @@ import jolie.net.ports.OutputPort;
 import jolie.process.DefinitionProcess;
 import jolie.process.InputOperationProcess;
 import jolie.process.SequentialProcess;
-import jolie.runtime.FaultException;
-import jolie.runtime.InputOperation;
-import jolie.runtime.InvalidIdException;
-import jolie.runtime.OneWayOperation;
-import jolie.runtime.RequestResponseOperation;
-import jolie.runtime.TimeoutHandler;
-import jolie.runtime.Value;
-import jolie.runtime.ValueVector;
+import jolie.runtime.*;
 import jolie.runtime.correlation.CorrelationEngine;
 import jolie.runtime.correlation.CorrelationError;
 import jolie.runtime.correlation.CorrelationSet;
@@ -87,6 +47,17 @@ import jolie.runtime.embedding.EmbeddedServiceLoaderFactory;
 import jolie.tracer.DummyTracer;
 import jolie.tracer.PrintingTracer;
 import jolie.tracer.Tracer;
+
+import java.io.*;
+import java.lang.ref.WeakReference;
+import java.net.URISyntaxException;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.logging.Logger;
 
 /**
  * The Jolie interpreter engine.
@@ -280,7 +251,6 @@ public class Interpreter
 	private final String programFilename;
 	private final File programDirectory;
 	private OutputPort monitor = null;
-	private Map< String, Configuration > configurationTree = new HashMap<>();
 
 	public void setMonitor( OutputPort monitor )
 	{
@@ -1258,31 +1228,13 @@ public class Interpreter
 			if ( check ) {
 				return false;
 			} else {
-				// TODO Where should configuration parsing and processing go?
-				// This definitely needs to run before the OOITBuilder. How should this work with --check?
-				if ( cmdParser.isRunningFromDeploymentConfiguration() ) {
-					File file = new File( cmdParser.deploymentFile() );
-					try ( FileInputStream fileInputStream = new FileInputStream( file ) ) {
-						COLParser parser = new COLParser( new Scanner( fileInputStream, file.toURI(),
-								cmdParser.charset() ), this.programDirectory );
-						try {
-							ConfigurationTree parsedTree = parser.parse();
-							this.configurationTree = new ExternalConfigurationProcessor( parsedTree ).process();
-							System.out.println( "Parsed the appropriate configuration: " );
-							System.out.println( parsedTree );
-						} catch ( ParserException ex ) {
-							throw new InterpreterException( ex );
-						}
-					}
-				}
-
 				return new OOITBuilder(
 						this,
 						program,
 						semanticVerifier.isConstantMap(),
 						semanticVerifier.correlationFunctionInfo(),
 						cmdParser.deploymentProfile(),
-						configurationTree
+						cmdParser.getExternalConfiguration()
 				).build();
 			}
 
