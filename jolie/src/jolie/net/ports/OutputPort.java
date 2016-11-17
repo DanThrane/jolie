@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 import jolie.Interpreter;
-import jolie.configuration.ProtocolConfiguration;
+import jolie.configuration.PortConfiguration;
 import jolie.lang.Constants;
 import jolie.net.CommChannel;
 import jolie.net.CommMessage;
@@ -112,7 +112,7 @@ public class OutputPort extends AbstractIdentifiableObject implements Port
 	 *
 	 * @param interpreter
 	 * @param id
-	 * @param protocolConfiguration
+	 * @param portConfiguration
 	 * @param locationURI
 	 * @param iface
 	 * @param isConstant
@@ -120,7 +120,7 @@ public class OutputPort extends AbstractIdentifiableObject implements Port
 	public OutputPort(
 			Interpreter interpreter,
 			String id,
-			ProtocolConfiguration protocolConfiguration,
+			PortConfiguration portConfiguration,
 			URI locationURI,
 			Interface iface,
 			boolean isConstant
@@ -150,7 +150,7 @@ public class OutputPort extends AbstractIdentifiableObject implements Port
 
 		List< Process > children = new LinkedList<>();
 		children.add( a );
-		children.addAll( protocolConfiguration.configure( this.protocolVariablePath ) );
+		children.addAll( portConfiguration.configure( this.locationVariablePath, this.protocolVariablePath ) );
 		this.configurationProcess = new SequentialProcess( children.toArray( new Process[ children.size() ] ) );
 	}
 	

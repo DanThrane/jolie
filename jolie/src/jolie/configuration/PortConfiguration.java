@@ -5,8 +5,8 @@ import jolie.runtime.VariablePath;
 
 import java.util.List;
 
-public interface ProtocolConfiguration
+public interface PortConfiguration
 {
-	List<Process> configure( VariablePath protocolVariablePath );
+	List<Process> configure( VariablePath locationVariablePath, VariablePath protocolVariablePath );
 	String getProtocolIdentifier();
 }

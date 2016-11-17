@@ -39,22 +39,51 @@ public class Arguments
 	private List< String > includeList = new ArrayList<>();
 	private List< String > libList = new ArrayList<>();
 
-	private final CommandLineParser cli;
-	private final CommandLineParser.ArgumentHandler argHandler;
+	private CommandLineParser cli = null;
+	private CommandLineParser.ArgumentHandler argHandler = null;
 
-	public Arguments( CommandLineParser cli, CommandLineParser.ArgumentHandler argHandler )
+	public void init( CommandLineParser cli, CommandLineParser.ArgumentHandler argHandler )
 	{
 		this.cli = cli;
 		this.argHandler = argHandler;
 	}
 
+	public Arguments makeCopy()
+	{
+		Arguments result = new Arguments();
+		result.cli = cli;
+		result.argHandler = argHandler;
+		result.connectionsLimit = connectionsLimit;
+		result.connectionsCache = connectionsCache;
+		result.correlationAlgorithmType = correlationAlgorithmType;
+		result.optionsList = optionsList;
+		result.programArguments = programArguments;
+		result.charset = charset;
+		result.constants = constants;
+		result.typeCheck = typeCheck;
+		result.tracer = tracer;
+		result.check = check;
+		result.programFilePath = programFilePath;
+		result.logLevel = logLevel;
+		result.packageRoot = packageRoot;
+		result.deploymentProfile = deploymentProfile;
+		result.deploymentFile = deploymentFile;
+		result.packageLocation = packageLocation;
+		result.packageSelf = packageSelf;
+		result.entryPoints = entryPoints;
+		result.includeList = includeList;
+		result.libList = libList;
+		return result;
+	}
+
 	public void parse( String[] args )
 			throws CommandLineException, IOException
 	{
+		assertInitialization();
+
 		List< String > argsList = new ArrayList<>( args.length );
 		Collections.addAll( argsList, args );
 
-		List< String > optionsList = new ArrayList<>();
 		List< String > programArgumentsList = new ArrayList<>();
 		int i = addOptions( 0, argsList );
 		i++;
@@ -68,6 +97,8 @@ public class Arguments
 
 	public int addOptions( int i, List< String > args ) throws CommandLineException
 	{
+		assertInitialization();
+
 		// First parse Jolie programArguments with the Jolie program argument
 		for ( ; i < args.size(); i++ ) {
 			if ( "--help".equals( args.get( i ) ) || "-h".equals( args.get( i ) ) ) {
@@ -252,6 +283,13 @@ public class Arguments
 		}
 	}
 
+	private void assertInitialization()
+	{
+		if ( cli == null || argHandler == null ) {
+			throw new IllegalStateException( "Arguments instance has not yet been initialized!" );
+		}
+	}
+
 	private String getVersionString()
 	{
 		return ( Constants.VERSION + "  " + Constants.COPYRIGHT );
@@ -355,5 +393,105 @@ public class Arguments
 	public String getPackageRoot()
 	{
 		return packageRoot;
+	}
+
+	public void setConnectionsLimit( int connectionsLimit )
+	{
+		this.connectionsLimit = connectionsLimit;
+	}
+
+	public void setConnectionsCache( int connectionsCache )
+	{
+		this.connectionsCache = connectionsCache;
+	}
+
+	public void setCorrelationAlgorithmType( CorrelationEngine.Type correlationAlgorithmType )
+	{
+		this.correlationAlgorithmType = correlationAlgorithmType;
+	}
+
+	public void setOptionsList( List< String > optionsList )
+	{
+		this.optionsList = optionsList;
+	}
+
+	public void setProgramArguments( List< String > programArguments )
+	{
+		this.programArguments = programArguments;
+	}
+
+	public void setCharset( String charset )
+	{
+		this.charset = charset;
+	}
+
+	public void setConstants( Map< String, Scanner.Token > constants )
+	{
+		this.constants = constants;
+	}
+
+	public void setTypeCheck( boolean typeCheck )
+	{
+		this.typeCheck = typeCheck;
+	}
+
+	public void setTracer( boolean tracer )
+	{
+		this.tracer = tracer;
+	}
+
+	public void setCheck( boolean check )
+	{
+		this.check = check;
+	}
+
+	public void setProgramFilePath( String programFilePath )
+	{
+		this.programFilePath = programFilePath;
+	}
+
+	public void setLogLevel( Level logLevel )
+	{
+		this.logLevel = logLevel;
+	}
+
+	public void setPackageRoot( String packageRoot )
+	{
+		this.packageRoot = packageRoot;
+	}
+
+	public void setDeploymentProfile( String deploymentProfile )
+	{
+		this.deploymentProfile = deploymentProfile;
+	}
+
+	public void setDeploymentFile( String deploymentFile )
+	{
+		this.deploymentFile = deploymentFile;
+	}
+
+	public void setPackageLocation( String packageLocation )
+	{
+		this.packageLocation = packageLocation;
+	}
+
+	public void setPackageSelf( String packageSelf )
+	{
+		this.packageSelf = packageSelf;
+	}
+
+	public void setEntryPoints( Map< String, String > entryPoints )
+	{
+		this.entryPoints = entryPoints;
+	}
+
+	public void setIncludeList( List< String > includeList )
+	{
+		this.includeList = includeList;
+	}
+
+	public void setLibList( List< String > libList )
+	{
+		this.libList = libList;
 	}
 }

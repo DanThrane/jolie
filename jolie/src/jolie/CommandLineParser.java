@@ -22,18 +22,15 @@
 package jolie;
 
 import java.io.*;
-import java.net.MalformedURLException;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.net.URL;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
 
 import jolie.configuration.Configuration;
-import jolie.jap.JapURLConnection;
 import jolie.lang.Constants;
 import jolie.lang.parse.ParserException;
 import jolie.lang.parse.Scanner;
@@ -50,8 +47,9 @@ public class CommandLineParser implements Closeable
 	private final Arguments arguments;
 	private final Configurator configurator;
 	private final ProgramPaths paths;
-	private final URI programURI;
-	private final InputStream programStream;
+	private final ClassLoader parentClassLoader;
+	private URI programURI;
+	private InputStream programStream;
 
 	/**
 	 * Constructor
@@ -107,7 +105,9 @@ public class CommandLineParser implements Closeable
 							  boolean ignoreFile )
 			throws CommandLineException, IOException
 	{
-		arguments = new Arguments( this, argHandler );
+		this.parentClassLoader = parentClassLoader;
+		arguments = new Arguments();
+		arguments.init( this, argHandler );
 		arguments.parse( args );
 		configurator = new Configurator( arguments );
 		try {
@@ -127,6 +127,49 @@ public class CommandLineParser implements Closeable
 			programURI = null;
 			programStream = new ByteArrayInputStream( new byte[]{} );
 		}
+	}
+
+	/**
+	 * Constructor used for cloning an existing CommandLineParser instance with new argument.s
+	 *
+	 * @param arguments       The arguments instance
+	 * @param configurator    The configurator instance
+	 * @param paths           The paths instance
+	 * @throws IOException
+	 */
+	public CommandLineParser( Arguments arguments, Configurator configurator, ProgramPaths paths,
+							  ClassLoader parentClassLoader ) throws IOException
+	{
+		this.arguments = arguments;
+		this.configurator = configurator;
+		this.paths = paths;
+		this.parentClassLoader = parentClassLoader;
+	}
+
+	public CommandLineParser makeCopy( Consumer< Arguments > argumentsConsumer )
+			throws IOException, CommandLineException
+	{
+		ClassLoader classLoader = parentClassLoader;
+
+		Arguments arguments = this.arguments.makeCopy();
+		Configurator configurator = new Configurator( arguments );
+		ProgramPaths paths = new ProgramPaths( arguments, configurator, classLoader );
+		CommandLineParser result = new CommandLineParser( arguments, configurator, paths, classLoader );
+
+		arguments.init( result, ArgumentHandler.DEFAULT_ARGUMENT_HANDLER );
+		argumentsConsumer.accept( arguments );
+
+		try {
+			configurator.configure();
+		} catch ( ParserException e ) {
+			throw new CommandLineException( e.getMessage() );
+		}
+		paths.configure();
+
+		Pair< URI, InputStream > program = paths.openProgram();
+		result.programURI = program.key();
+		result.programStream = program.value();
+		return result;
 	}
 
 	/**
@@ -190,7 +233,7 @@ public class CommandLineParser implements Closeable
 	@Deprecated
 	public File programFilepath()
 	{
-		if (programURI == null) { // TODO This shouldn't be needed
+		if (programURI == null) {
 			return null;
 		}
 		return new File( programURI );
@@ -409,6 +452,11 @@ public class CommandLineParser implements Closeable
 	public Map< String, Configuration > getExternalConfiguration()
 	{
 		return configurator.getExternalConfiguration();
+	}
+
+	public ClassLoader getParentClassLoader()
+	{
+		return parentClassLoader;
 	}
 
 	/**

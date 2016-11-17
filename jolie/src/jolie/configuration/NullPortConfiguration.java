@@ -7,12 +7,12 @@ import jolie.runtime.VariablePath;
 import java.util.Collections;
 import java.util.List;
 
-public enum NullProtocolConfiguration implements ProtocolConfiguration
+public enum NullPortConfiguration implements PortConfiguration
 {
 	INSTANCE;
 
 	@Override
-	public List< Process > configure( VariablePath protocolVariablePath )
+	public List< Process > configure( VariablePath locationVariablePath, VariablePath protocolVariablePath )
 	{
 		return Collections.singletonList( NullProcess.getInstance() );
 	}

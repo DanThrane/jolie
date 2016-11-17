@@ -443,7 +443,7 @@ public class OOITBuilder implements OLVisitor
 
 		Configuration configuration = configurationTree.get( configurationProfile );
 
-		ProtocolConfiguration protocolConfig = getProtocolConfigurationForOutputPort( n, configuration );
+		PortConfiguration protocolConfig = getProtocolConfigurationForOutputPort( n, configuration );
 		URI location = getLocationForOutputPort( n, configuration );
 
 		interpreter.register( n.id(), new OutputPort(
@@ -457,18 +457,18 @@ public class OOITBuilder implements OLVisitor
 		);
 	}
 
-	private ProtocolConfiguration getProtocolConfigurationForOutputPort( OutputPortInfo n, Configuration configuration )
+	private PortConfiguration getProtocolConfigurationForOutputPort( OutputPortInfo n, Configuration configuration )
 	{
 		if ( n.protocolId() != null ) {
 			Process p = ( n.protocolConfiguration() != null ) ?
 					buildProcess( n.protocolConfiguration() ) :
 					NullProcess.getInstance();
 
-			return new ASTProtocolConfiguration( n.protocolId(), p);
+			return new ASTPortConfiguration( n.protocolId(), p);
 		} else if ( hasExternalOutputPortConfiguration( n, configuration ) ) {
-			return new ExternalProtocolConfiguration( configuration.getOutputPort( n.id() ), interpreter, configurationTree );
+			return new ExternalPortConfiguration( configuration.getOutputPort( n.id() ), interpreter, configurationTree );
 		} else {
-			return NullProtocolConfiguration.INSTANCE;
+			return NullPortConfiguration.INSTANCE;
 		}
 	}
 
@@ -583,8 +583,8 @@ public class OOITBuilder implements OLVisitor
 		URI location = getLocationForInputPort( n, configuration );
 		locationPath.getValue().setValue( location.toString() );
 
-		ProtocolConfiguration protocolConfiguration = getProtocolConfigurationForInputPort( n, configuration );
-		List< Process > configurationProcesses = protocolConfiguration.configure( protocolPath );
+		PortConfiguration portConfiguration = getProtocolConfigurationForInputPort( n, configuration );
+		List< Process > configurationProcesses = portConfiguration.configure( locationPath, protocolPath );
 
 		SequentialProcess protocolConfigurationSequence = new SequentialProcess(
 				configurationProcesses.toArray( new Process[0] )
@@ -602,7 +602,7 @@ public class OOITBuilder implements OLVisitor
 		registerInputPort(
 				protocolConfigurationSequence,
 				inputPort,
-				protocolConfiguration.getProtocolIdentifier(),
+				portConfiguration.getProtocolIdentifier(),
 				location,
 				n.context()
 		);
@@ -624,18 +624,18 @@ public class OOITBuilder implements OLVisitor
 		}
 	}
 
-	private ProtocolConfiguration getProtocolConfigurationForInputPort( InputPortInfo n, Configuration configuration )
+	private PortConfiguration getProtocolConfigurationForInputPort( InputPortInfo n, Configuration configuration )
 	{
 		if ( n.protocolId() != null ) {
 			Process p = ( n.protocolConfiguration() != null ) ?
 					buildProcess( n.protocolConfiguration() ) :
 					NullProcess.getInstance();
 
-			return new ASTProtocolConfiguration( n.protocolId(), p);
+			return new ASTPortConfiguration( n.protocolId(), p);
 		} else if ( n.isExternal() && configuration.hasInputPortProtocol( n.id() ) ) {
-			return new ExternalProtocolConfiguration( configuration.getInputPort( n.id() ), interpreter, configurationTree );
+			return new ExternalPortConfiguration( configuration.getInputPort( n.id() ), interpreter, configurationTree );
 		} else {
-			return NullProtocolConfiguration.INSTANCE;
+			return NullPortConfiguration.INSTANCE;
 		}
 	}
 

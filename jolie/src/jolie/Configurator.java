@@ -29,6 +29,8 @@ public class Configurator
 	private String mainName;
 	private Map< String, Configuration > externalConfiguration = new HashMap<>();
 
+	private static Map< String, Map< String, Configuration > > configurationCache = new HashMap<>();
+
 	public Configurator( Arguments arguments )
 	{
 		this.arguments = arguments;
@@ -68,24 +70,28 @@ public class Configurator
 			if ( defaultConfigFile.exists() ) {
 				deploymentFile = defaultConfigFile;
 			}
+			// Needed if we make a copy of the arguments. We should still read configuration from the same tree.
+			arguments.setDeploymentFile( defaultConfigFile.getAbsolutePath() );
 		} else {
 			deploymentFile = new File( arguments.getDeploymentFile() );
 		}
 
 		if ( deploymentFile != null ) {
 			if ( deploymentFile.exists() ) {
-				try ( FileInputStream fileInputStream = new FileInputStream( deploymentFile ) ) {
-					COLParser parser = new COLParser( new Scanner( fileInputStream, deploymentFile.toURI(),
-							arguments.getCharset() ), deploymentFile.getParentFile() );
-					try {
-						ConfigurationTree parsedTree = parser.parse();
-						ExternalConfigurationProcessor tree = new ExternalConfigurationProcessor( parsedTree );
-						externalConfiguration = tree.process();
-
-						System.out.println( "Parsed the appropriate configuration: " );
-						System.out.println( parsedTree );
-					} catch ( ParserException ex ) {
-						throw new IllegalStateException( "Unable to parse external configuration.", ex );
+				if ( configurationCache.containsKey( deploymentFile.getAbsolutePath() ) ) {
+					externalConfiguration = configurationCache.get( deploymentFile.getAbsolutePath() );
+				} else {
+					try ( FileInputStream fileInputStream = new FileInputStream( deploymentFile ) ) {
+						COLParser parser = new COLParser( new Scanner( fileInputStream, deploymentFile.toURI(),
+								arguments.getCharset() ), deploymentFile.getParentFile() );
+						try {
+							ConfigurationTree parsedTree = parser.parse();
+							ExternalConfigurationProcessor tree = new ExternalConfigurationProcessor( parsedTree );
+							externalConfiguration = tree.process();
+							configurationCache.put( deploymentFile.getAbsolutePath(), externalConfiguration );
+						} catch ( ParserException ex ) {
+							throw new IllegalStateException( "Unable to parse external configuration.", ex );
+						}
 					}
 				}
 			} else if ( arguments.getDeploymentFile() != null ) {

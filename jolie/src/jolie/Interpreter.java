@@ -234,13 +234,10 @@ public class Interpreter
 	private final String[] optionArgs;
 	private final String logPrefix;
 	private final Tracer tracer;
-        private boolean check = false;
+	private boolean check = false;
 	private final Timer timer;
-	// private long inputMessageTimeout = 24 * 60 * 60 * 1000; // 1 day
 	private final long persistentConnectionTimeout = 60 * 60 * 1000; // 1 hour
 	private final long awaitTerminationTimeout = 60 * 1000; // 1 minute
-	// private long persistentConnectionTimeout = 2 * 60 * 1000; // 4 minutes
-	// private long persistentConnectionTimeout = 1;
 
 	// 11 is the default initial capacity for PriorityQueue
 	private final Queue< WeakReference< TimeoutHandler > > timeoutHandlerQueue =
@@ -262,11 +259,6 @@ public class Interpreter
 	{
 		return monitor != null;
 	}
-	
-	/*public long inputMessageTimeout()
-	{
-		return inputMessageTimeout;
-	}*/
 	
 	public String logPrefix()
 	{
@@ -326,7 +318,7 @@ public class Interpreter
 	public void addTimeoutHandler( TimeoutHandler handler )
 	{
 		synchronized( timeoutHandlerQueue ) {
-			timeoutHandlerQueue.add( new WeakReference< TimeoutHandler >( handler ) );
+			timeoutHandlerQueue.add( new WeakReference<>( handler ) );
 			if ( timeoutHandlerQueue.size() == 1 ) {
 				schedule( new TimerTask() {
 					public void run()
@@ -341,14 +333,6 @@ public class Interpreter
 			}
 		}
 	}
-
-	/*public void removeTimeoutHandler( TimeoutHandler handler )
-	{
-		synchronized( timeoutHandlerQueue ) {
-			timeoutHandlerQueue.remove( handler );
-			checkForExpiredTimeoutHandlers();
-		}
-	}*/
 
 	private void checkForExpiredTimeoutHandlers()
 	{
@@ -766,44 +750,32 @@ public class Interpreter
 		return classLoader;
 	}
 
-	/**
-	 * Returns <code>true</code> if this interpreter is in verbose mode.
-	 * @return <code>true</code> if this interpreter is in verbose mode
-	 */
-	/* public boolean verbose()
-	{
-		return verbose;
-	} */
-
 	/** Constructor.
 	 *
 	 * @param args The command line arguments.
 	 * @param parentClassLoader the parent ClassLoader to fall back when not finding resources.
 	 * @param programDirectory the program directory of this Interpreter, necessary if it is run inside a JAP file.
 	 * @throws CommandLineException if the command line is not valid or asks for simple information. (like --help and --version)
-	 * @throws FileNotFoundException if one of the passed input files is not found.
 	 * @throws IOException if a Scanner constructor signals an error.
 	 */
 	public Interpreter( String[] args, ClassLoader parentClassLoader, File programDirectory )
-		throws CommandLineException, FileNotFoundException, IOException
+		throws CommandLineException, IOException
 	{
         this( args, parentClassLoader, programDirectory, false );
 	}
-    
-    public Interpreter( String[] args, ClassLoader parentClassLoader, File programDirectory, boolean ignoreFile )
-			throws CommandLineException, FileNotFoundException, IOException
-	{
-		this.parentClassLoader = parentClassLoader;
 
-		cmdParser = new CommandLineParser( args, parentClassLoader, ignoreFile );
+	public Interpreter( CommandLineParser cmdParser, File programDirectory ) throws IOException
+	{
+		this.cmdParser = cmdParser;
+		parentClassLoader = cmdParser.getParentClassLoader();
 		classLoader = cmdParser.jolieClassLoader();
 		optionArgs = cmdParser.optionArgs();
 		programFilename = cmdParser.getProgramName();
 		arguments = cmdParser.arguments();
-        
+
 		this.correlationEngine = cmdParser.correlationAlgorithmType().createInstance( this );
-		
-        commCore = new CommCore( this, cmdParser.connectionsLimit() /*, cmdParser.connectionsCache() */ );
+
+		commCore = new CommCore( this, cmdParser.connectionsLimit() );
 		includePaths = cmdParser.includePaths();
 
 		StringBuilder builder = new StringBuilder();
@@ -817,9 +789,9 @@ public class Interpreter
 		} else {
 			tracer = new DummyTracer();
 		}
-		
+
 		logger.setLevel( cmdParser.logLevel() );
-		
+
 		timer = new Timer( programFilename + "-Timer" );
 		exitingLock = new ReentrantLock();
 		exitingCondition = exitingLock.newCondition();
@@ -830,10 +802,17 @@ public class Interpreter
 			this.programDirectory = cmdParser.programDirectory();
 		}
 		if ( this.programDirectory == null ) {
-			throw new IOException( "Could not localize the service execution directory. This is probably a bug in the JOLIE interpreter, please report it to jolie-devel@lists.sf.net" );
+			throw new IOException( "Could not localize the service execution directory. This is probably a bug in " +
+					"the JOLIE interpreter, please report it to jolie-devel@lists.sf.net" );
 		}
 	}
-   
+
+    public Interpreter( String[] args, ClassLoader parentClassLoader, File programDirectory, boolean ignoreFile )
+			throws CommandLineException, IOException
+	{
+		this( new CommandLineParser( args, parentClassLoader, ignoreFile ), programDirectory );
+	}
+
     /** Constructor.
 	 *
 	 * @param args The command line arguments.
@@ -841,16 +820,21 @@ public class Interpreter
 	 * @param programDirectory the program directory of this Interpreter, necessary if it is run inside a JAP file.
 	 * @param internalServiceProgram
 	 * @throws CommandLineException if the command line is not valid or asks for simple information. (like --help and --version)
-	 * @throws FileNotFoundException if one of the passed input files is not found.
 	 * @throws IOException if a Scanner constructor signals an error.
 	 */
-	public Interpreter( String[] args, ClassLoader parentClassLoader, File programDirectory, Interpreter parentInterpreter, Program internalServiceProgram )
-		throws CommandLineException, FileNotFoundException, IOException
+	public Interpreter( String[] args, ClassLoader parentClassLoader, File programDirectory,
+						Interpreter parentInterpreter, Program internalServiceProgram )
+		throws CommandLineException, IOException
 	{
         this( args, parentClassLoader, programDirectory, true );
         
 		this.parentInterpreter = parentInterpreter;
         this.internalServiceProgram = internalServiceProgram;
+	}
+
+	public CommandLineParser cmdParser()
+	{
+		return cmdParser;
 	}
 
 	/**

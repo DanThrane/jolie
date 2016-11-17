@@ -30,6 +30,7 @@ import java.util.concurrent.Future;
 import java.util.regex.Pattern;
 
 import jolie.CommandLineException;
+import jolie.CommandLineParser;
 import jolie.Interpreter;
 import jolie.runtime.expression.Expression;
 
@@ -37,7 +38,6 @@ import jolie.runtime.expression.Expression;
 public class JolieServiceLoader extends EmbeddedServiceLoader
 {
 	private final static Pattern servicePathSplitPattern = Pattern.compile( " " );
-	public static final String FOLDER_NAME_JPM_PACKAGES = "jpm_packages";
 	private final Interpreter interpreter;
 
 	public JolieServiceLoader( Expression channelDest, Interpreter currInterpreter, String servicePath )
@@ -59,6 +59,12 @@ public class JolieServiceLoader extends EmbeddedServiceLoader
 				currInterpreter.getClassLoader(),
 				currInterpreter.programDirectory()
 		);
+	}
+
+	public JolieServiceLoader( Expression channelDest, CommandLineParser cli ) throws IOException
+	{
+		super( channelDest );
+		interpreter = new Interpreter( cli, null );
 	}
 
 	public void load ()
