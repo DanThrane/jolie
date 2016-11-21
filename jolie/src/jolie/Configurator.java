@@ -8,6 +8,7 @@ import jolie.lang.parse.ParserException;
 import jolie.lang.parse.Scanner;
 import jolie.lang.parse.ast.ConfigurationTree;
 import jolie.util.Helpers;
+import jolie.util.Pair;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -17,6 +18,7 @@ import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * Responsible for dealing with configuration based on the interpreter's arguments
@@ -24,6 +26,7 @@ import java.util.regex.Pattern;
 public class Configurator
 {
 	private final static Pattern OPTION_SEPARATOR_PATTERN = Pattern.compile( " " );
+	public static final String DEFAULT_COL = "default.col";
 	private final Arguments arguments;
 
 	private String mainName;
@@ -38,6 +41,8 @@ public class Configurator
 
 	public void configure() throws IOException, CommandLineException, ParserException
 	{
+		// TODO General verification
+
 		String programFilePath = arguments.getProgramFilePath();
 		mainName = programFilePath;
 
@@ -66,7 +71,7 @@ public class Configurator
 	{
 		File deploymentFile = null;
 		if ( arguments.getDeploymentFile() == null ) {
-			File defaultConfigFile = new File( getPackageRoot(), "default.col" );
+			File defaultConfigFile = new File( getPackageRoot( arguments.getPackageSelf() ), DEFAULT_COL );
 			if ( defaultConfigFile.exists() ) {
 				deploymentFile = defaultConfigFile;
 			}
@@ -78,24 +83,46 @@ public class Configurator
 
 		if ( deploymentFile != null ) {
 			if ( deploymentFile.exists() ) {
-				if ( configurationCache.containsKey( deploymentFile.getAbsolutePath() ) ) {
-					externalConfiguration = configurationCache.get( deploymentFile.getAbsolutePath() );
-				} else {
-					try ( FileInputStream fileInputStream = new FileInputStream( deploymentFile ) ) {
-						COLParser parser = new COLParser( new Scanner( fileInputStream, deploymentFile.toURI(),
-								arguments.getCharset() ), deploymentFile.getParentFile() );
-						try {
-							ConfigurationTree parsedTree = parser.parse();
-							ExternalConfigurationProcessor tree = new ExternalConfigurationProcessor( parsedTree );
-							externalConfiguration = tree.process();
-							configurationCache.put( deploymentFile.getAbsolutePath(), externalConfiguration );
-						} catch ( ParserException ex ) {
-							throw new IllegalStateException( "Unable to parse external configuration.", ex );
-						}
-					}
-				}
+				externalConfiguration = parseAndProcessConfigurationFile( deploymentFile );
 			} else if ( arguments.getDeploymentFile() != null ) {
 				throw new CommandLineException( "Could not find deployment file '" + deploymentFile + "'" );
+			}
+		}
+	}
+
+	private Map< String, Configuration > parseAndProcessConfigurationFile( File configFile )
+	{
+		String path = configFile.getAbsolutePath();
+		if ( configurationCache.containsKey( path ) ) {
+			return configurationCache.get( path );
+		} else {
+			try ( FileInputStream fileInputStream = new FileInputStream( configFile ) ) {
+				COLParser parser = new COLParser( new Scanner( fileInputStream, configFile.toURI(),
+						arguments.getCharset() ), configFile.getParentFile() );
+				try {
+					ConfigurationTree parsedTree = parser.parse();
+					ExternalConfigurationProcessor tree = new ExternalConfigurationProcessor( parsedTree );
+					Map< String, Configuration > config = tree.process();
+
+					// TODO Merge with defaults
+					Map< String, Configuration > mergedConfiguration = config.values().stream().map( ( configUnit ) -> {
+						File file = new File( getPackageRoot( configUnit.getPackageName() ), DEFAULT_COL );
+						if ( !file.exists() || file.equals( configFile ) ) {
+							return new Pair<>( configUnit.getProfileName(), configUnit );
+						}
+
+						parseAndProcessConfigurationFile( file );
+
+						return new Pair<>( configUnit.getProfileName(), configUnit );
+					} ).collect( Collectors.toMap( Pair::key, Pair::value ) );
+
+					configurationCache.put( path, mergedConfiguration );
+					return config;
+				} catch ( ParserException ex ) {
+					throw new IllegalStateException( "Unable to parse external configuration.", ex );
+				}
+			} catch ( IOException e ) {
+				throw new RuntimeException( e );
 			}
 		}
 	}
@@ -110,9 +137,8 @@ public class Configurator
 		mainName = entryPoint;
 	}
 
-	private File getPackageRoot()
+	private File getPackageRoot( String packageSelf )
 	{
-		String packageSelf = arguments.getPackageSelf();
 		if ( packageSelf == null ) { // Old behavior
 			return new File( "." );
 		}

@@ -188,5 +188,10 @@ public class ExternalConfigurationProcessor
 		{
 			return name;
 		}
+
+		public ConfigurationTree.PortType getPortType()
+		{
+			return portType;
+		}
 	}
 }
