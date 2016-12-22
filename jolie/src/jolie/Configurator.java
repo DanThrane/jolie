@@ -44,7 +44,7 @@ public class Configurator
 		// TODO General verification
 
 		String programFilePath = arguments.getProgramFilePath();
-		mainName = programFilePath;
+		mainName = programFilePath; // TODO Should we be setting this on the arguments instance instead?
 
 		if ( programFilePath != null && programFilePath.endsWith( ".jap" ) ) {
 			JarFile japFile = new JarFile( programFilePath );
@@ -59,15 +59,36 @@ public class Configurator
 			arguments.addOptions( 0, japOptions );
 		}
 
-		if ( arguments.getPackageSelf() != null ) {
-			parsePackageMainEntry();
-			parseExtConfiguration();
+		if ( hasInternalDeployment() ) {
+			externalConfiguration = arguments.getInternalConfiguration();
+		} else if ( hasDeploymentFromFile() ) {
+			// Parsing ext config will set packageSelf if we're deploying from a file without --pkg-self
+			parseExtConfigurationFromFile();
 		}
 
+		if ( hasDeployment() ) {
+			validateConfiguration();
+			parsePackageMainEntry();
+		}
 		validateState();
 	}
 
-	private void parseExtConfiguration() throws IOException, CommandLineException
+	private boolean hasDeployment()
+	{
+		return hasDeploymentFromFile() || hasInternalDeployment();
+	}
+
+	private boolean hasInternalDeployment()
+	{
+		return arguments.getInternalConfiguration() != null;
+	}
+
+	private boolean hasDeploymentFromFile()
+	{
+		return arguments.getPackageSelf() != null || arguments.getDeploymentFile() != null;
+	}
+
+	private void parseExtConfigurationFromFile() throws IOException, CommandLineException
 	{
 		File deploymentFile = null;
 		if ( arguments.getDeploymentFile() == null ) {
@@ -90,6 +111,31 @@ public class Configurator
 		}
 	}
 
+	private void validateConfiguration()
+	{
+		if ( externalConfiguration == null ) return;
+
+		String deploymentProfile = arguments.getDeploymentProfile();
+		Configuration deployedConfigUnit = externalConfiguration.get( deploymentProfile );
+
+		if ( deployedConfigUnit == null ) {
+			throw new IllegalStateException( "Unable to find configuration profile '" +
+					deploymentProfile + "'" );
+		}
+
+		String actualSelf = deployedConfigUnit.getPackageName();
+		String expectedSelf = arguments.getPackageSelf();
+		if ( expectedSelf != null ) {
+			if ( !expectedSelf.equals( actualSelf ) ) {
+				throw new IllegalStateException( "--pkg-self does not match the package name of the " +
+						"configuration unit. From --pkg-self I got '" + expectedSelf + "'. But the used " +
+						"configuration unit has the package '" + actualSelf + "'" );
+			}
+		} else {
+			arguments.setPackageSelf( actualSelf );
+		}
+	}
+
 	private Map< String, Configuration > parseAndProcessConfigurationFile( File configFile )
 	{
 		String path = configFile.getAbsolutePath();
@@ -104,26 +150,46 @@ public class Configurator
 					ExternalConfigurationProcessor tree = new ExternalConfigurationProcessor( parsedTree );
 					Map< String, Configuration > config = tree.process();
 
-					// TODO Merge with defaults
-					Map< String, Configuration > mergedConfiguration = config.values().stream().map( ( configUnit ) -> {
-						File file = new File( getPackageRoot( configUnit.getPackageName() ), DEFAULT_COL );
-						if ( !file.exists() || file.equals( configFile ) ) {
-							return new Pair<>( configUnit.getProfileName(), configUnit );
-						}
+					if ( configFile.getName().equals( DEFAULT_COL ) ) {
+						validateDefaultConfigUnit( config );
+					}
 
-						parseAndProcessConfigurationFile( file );
-
-						return new Pair<>( configUnit.getProfileName(), configUnit );
-					} ).collect( Collectors.toMap( Pair::key, Pair::value ) );
-
+					// TODO Should always validate default unit
+					Map< String, Configuration > mergedConfiguration = mergeConfigurationUnitWithDefaults( configFile,
+							config );
 					configurationCache.put( path, mergedConfiguration );
-					return config;
+					return mergedConfiguration;
 				} catch ( ParserException ex ) {
 					throw new IllegalStateException( "Unable to parse external configuration.", ex );
 				}
 			} catch ( IOException e ) {
 				throw new RuntimeException( e );
 			}
+		}
+	}
+
+	private Map< String, Configuration > mergeConfigurationUnitWithDefaults( File configFile,
+																			 Map< String, Configuration > config )
+	{
+		return config.values().stream().map( ( configUnit ) -> {
+			File file = new File( getPackageRoot( configUnit.getPackageName() ), DEFAULT_COL );
+			if ( !file.exists() || file.equals( configFile ) ) {
+				return new Pair<>( configUnit.getProfileName(), configUnit );
+			}
+
+			Map< String, Configuration > defaults = parseAndProcessConfigurationFile( file );
+			validateDefaultConfigUnit( defaults );
+
+			Configuration mergedUnit = Configuration.merge( configUnit, defaults.get( "default" ) );
+			return new Pair<>( configUnit.getProfileName(), mergedUnit );
+		} ).collect( Collectors.toMap( Pair::key, Pair::value ) );
+	}
+
+	private void validateDefaultConfigUnit( Map< String, Configuration > defaults )
+	{
+		if ( defaults.size() != 1 || !defaults.containsKey( "default" )) {
+			throw new IllegalStateException( "Default configuration files only allow a single " +
+					"configuration unit named 'default'" );
 		}
 	}
 

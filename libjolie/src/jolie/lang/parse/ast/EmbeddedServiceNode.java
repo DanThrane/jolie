@@ -30,6 +30,7 @@ public class EmbeddedServiceNode extends OLSyntaxNode
 	private final String servicePath;
 	private final String portId;
 	private final Constants.EmbeddedServiceType type;
+	private final ConfigurationTree.Region region;
 
 	private Program program = null;
 
@@ -39,10 +40,21 @@ public class EmbeddedServiceNode extends OLSyntaxNode
 			String servicePath,
 			String portId )
 	{
+		this(context, type, servicePath, portId, null );
+	}
+
+	public EmbeddedServiceNode(
+			ParsingContext context,
+			Constants.EmbeddedServiceType type,
+			String servicePath,
+			String portId,
+			ConfigurationTree.Region region)
+	{
 		super( context );
 		this.type = type;
 		this.servicePath = servicePath;
 		this.portId = portId;
+		this.region = region;
 	}
 	
 	public Constants.EmbeddedServiceType type()
@@ -70,7 +82,11 @@ public class EmbeddedServiceNode extends OLSyntaxNode
 		return program;
 	}
 
-	@Override
+	public ConfigurationTree.Region region()
+	{
+		return region;
+	}
+
 	public void accept( OLVisitor visitor )
 	{
 		visitor.visit( this );

@@ -50,8 +50,14 @@ public class COLParser extends AbstractParser
 
 	private final ConfigurationTree configurationTree = new ConfigurationTree();
 	private File workingDirectory;
+	private final boolean allowRepublish;
 
 	private Region currentRegion = null;
+
+	public COLParser( Scanner scanner, File workingDirectory )
+	{
+		this( scanner, workingDirectory, false );
+	}
 
 	/**
 	 * Constructor
@@ -59,10 +65,11 @@ public class COLParser extends AbstractParser
 	 * @param scanner          The scanner to use during the parsing procedure.
 	 * @param workingDirectory
 	 */
-	public COLParser( Scanner scanner, File workingDirectory )
+	public COLParser( Scanner scanner, File workingDirectory, boolean allowRepublish )
 	{
 		super( scanner );
 		this.workingDirectory = workingDirectory;
+		this.allowRepublish = allowRepublish;
 	}
 
 	public static void main( String[] args ) throws Exception
@@ -144,6 +151,16 @@ public class COLParser extends AbstractParser
 
 		if (profileName == null) profileName = packageName;
 
+		return parseInlineRegion( profileName, packageName );
+	}
+
+	public void foreignInit()
+	{
+
+	}
+
+	public Region parseInlineRegion( String profileName, String packageName ) throws IOException, ParserException
+	{
 		currentRegion = new Region();
 		currentRegion.setProfileName( profileName );
 		currentRegion.setPackageName( packageName );
@@ -190,6 +207,16 @@ public class COLParser extends AbstractParser
 
 		OLSyntaxNode value = parseValue();
 		return new ExternalConstant( name, value );
+	}
+
+	public void setToken( Scanner.Token token )
+	{
+		this.token = token;
+	}
+
+	public Scanner.Token getCurrentToken()
+	{
+		return token;
 	}
 
 	private ExternalPort parsePort() throws ParserException, IOException

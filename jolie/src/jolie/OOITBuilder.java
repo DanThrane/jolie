@@ -39,6 +39,7 @@ import java.util.function.BiPredicate;
 
 import jolie.configuration.*;
 import jolie.lang.Constants;
+import jolie.lang.Constants.EmbeddedServiceType;
 import jolie.lang.Constants.ExecutionMode;
 import jolie.lang.Constants.OperandType;
 import jolie.lang.parse.CorrelationFunctionInfo;
@@ -194,6 +195,8 @@ import jolie.runtime.correlation.CorrelationSet;
 import jolie.runtime.correlation.CorrelationSet.CorrelationPair;
 import jolie.runtime.embedding.EmbeddedServiceLoader;
 import jolie.runtime.embedding.EmbeddedServiceLoader.EmbeddedServiceConfiguration;
+import jolie.runtime.embedding.EmbeddedServiceLoader.ExternalEmbeddedServiceConfiguration;
+import jolie.runtime.embedding.EmbeddedServiceLoader.InternalEmbeddedServiceConfiguration;
 import jolie.runtime.embedding.EmbeddedServiceLoaderCreationException;
 import jolie.runtime.expression.AndCondition;
 import jolie.runtime.expression.CastBoolExpression;
@@ -518,24 +521,32 @@ public class OOITBuilder implements OLVisitor
 				n.portId() == null ? null
 				: interpreter.getOutputPort( n.portId() ).locationVariablePath();
 
-			final EmbeddedServiceConfiguration embeddedServiceConfiguration =
-				n.type().equals( Constants.EmbeddedServiceType.INTERNAL )
-				? new EmbeddedServiceLoader.InternalEmbeddedServiceConfiguration( n.servicePath(), (Program) n.program() )
-				: new EmbeddedServiceLoader.ExternalEmbeddedServiceConfiguration( n.type(), n.servicePath(), n.context() );
+			final EmbeddedServiceConfiguration embeddedServiceConfiguration = getEmbeddedServiceConfiguration( n );
 
-			interpreter.addEmbeddedServiceLoader(
-				EmbeddedServiceLoader.create(
+			interpreter.addEmbeddedServiceLoader( EmbeddedServiceLoader.create(
 					interpreter,
 					embeddedServiceConfiguration,
 					path
-				) );
+			) );
 		} catch( EmbeddedServiceLoaderCreationException e ) {
 			error( n.context(), e );
 		} catch( InvalidIdException e ) {
 			error( n.context(), "could not find port " + n.portId() );
 		}
 	}
-	
+
+	private EmbeddedServiceConfiguration getEmbeddedServiceConfiguration( EmbeddedServiceNode n )
+	{
+		switch ( n.type() ) {
+			case INTERNAL:
+				return new InternalEmbeddedServiceConfiguration( n.servicePath(), n.program() );
+			case JOLIE_PACKAGE:
+				return new EmbeddedServiceLoader.EmbeddedPackageServiceConfiguration( n.servicePath(), n.region() );
+			default:
+				return new ExternalEmbeddedServiceConfiguration( n.type(), n.servicePath(), n.context() );
+		}
+	}
+
 	private AggregationConfiguration getAggregationConfiguration( String inputPortName, String operationName )
 	{
 		Map< String, AggregationConfiguration > map = aggregationConfigurations.get( inputPortName );

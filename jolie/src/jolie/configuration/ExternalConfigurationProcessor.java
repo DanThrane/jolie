@@ -69,7 +69,7 @@ public class ExternalConfigurationProcessor
 	private ProcessedPort processPort( ConfigurationTree.ExternalPort port )
 	{
 		if ( port.isEmbedding() ) {
-			return new ProcessedPort( port.getName(), port.getEmbeds(), port.getLocation(), port.getType() );
+			return new ProcessedPort( port.getName(), port.getEmbeds(), port.getType() );
 		} else {
 			String location = port.getLocation();
 			String protocolType = null;
@@ -144,12 +144,12 @@ public class ExternalConfigurationProcessor
 		private final Value protocolProperties;
 		private final ConfigurationTree.PortType portType;
 
-		public ProcessedPort( String name, String embedding, String location, ConfigurationTree.PortType portType )
+		public ProcessedPort( String name, String embedding, ConfigurationTree.PortType portType )
 		{
 			this.name = name;
 			this.embedding = embedding;
-			this.location = location;
 			this.portType = portType;
+			this.location = null;
 			this.protocolProperties = null;
 			this.protocolType = null;
 		}

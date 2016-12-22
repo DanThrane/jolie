@@ -50,25 +50,34 @@ public class Configuration
 	private static void mergePorts( Map< String, ProcessedPort > destinationPorts,
 									Map< String, ProcessedPort > defaultPorts )
 	{
-		defaultPorts.forEach( (portName, defaultPort) -> {
+		defaultPorts.forEach( ( portName, defaultPort ) -> {
 			if ( destinationPorts.containsKey( portName ) ) {
 				ProcessedPort destinationPort = destinationPorts.get( portName );
 
-				String name = destinationPort.getName();
 				String location = destinationPort.getLocation();
 				String embedding = destinationPort.getEmbedding();
 				String protocolType = destinationPort.getProtocolType();
 				Value protocolProperties = destinationPort.getProtocolProperties();
 				ConfigurationTree.PortType portType = destinationPort.getPortType();
 
-				if ( destinationPort.getName() == null ) name = defaultPort.getName();
-				if ( destinationPort.getLocation() == null ) location = defaultPort.getLocation();
-				if ( destinationPort.getEmbedding() == null ) embedding = defaultPort.getEmbedding();
-				if ( destinationPort.getProtocolType() == null ) protocolType = defaultPort.getProtocolType();
-				if ( destinationPort.getProtocolProperties() == null ) protocolProperties = defaultPort.getProtocolProperties();
+				if ( embedding == null ) {
+					// We provide no embedding ourselves, thus we must use locations. Accept defaults
+					if ( destinationPort.getLocation() == null ) location = defaultPort.getLocation();
+					if ( destinationPort.getProtocolType() == null ) protocolType = defaultPort.getProtocolType();
+					if ( destinationPort.getProtocolProperties() == null )
+						protocolProperties = defaultPort.getProtocolProperties();
 
-				destinationPorts.put( portName,
-						new ProcessedPort( name, protocolType, protocolProperties, location, portType ) );
+					destinationPorts.put( portName,
+							new ProcessedPort( portName, protocolType, protocolProperties, location, portType ) );
+				} else if ( location == null ) {
+					// Not providing a location, thus we must be embedding. Accept defaults.
+					// TODO This isn't actually possible if we can only provide a single unit per default file.
+					// Also doesn't make a lot of sense? What are the use-cases?
+					if ( destinationPort.getEmbedding() == null ) embedding = defaultPort.getEmbedding();
+
+					destinationPorts.put( portName,
+							new ProcessedPort( portName, embedding, portType ) );
+				} // TODO Else? Do we just let it crash later when we validate external ports?
 			} else {
 				destinationPorts.put( portName, defaultPort );
 			}
@@ -144,7 +153,7 @@ public class Configuration
 		if ( this == o ) return true;
 		if ( o == null || getClass() != o.getClass() ) return false;
 
-		Configuration that = (Configuration) o;
+		Configuration that = ( Configuration ) o;
 
 		if ( !inputPorts.equals( that.inputPorts ) ) return false;
 		if ( !outputPorts.equals( that.outputPorts ) ) return false;

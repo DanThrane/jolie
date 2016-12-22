@@ -1,5 +1,6 @@
 package jolie;
 
+import jolie.configuration.Configuration;
 import jolie.lang.Constants;
 import jolie.lang.parse.Scanner;
 import jolie.runtime.correlation.CorrelationEngine;
@@ -35,6 +36,7 @@ public class Arguments
 	private String deploymentFile = null;
 	private String packageLocation = null;
 	private String packageSelf = null;
+	private Map<String, Configuration> internalConfiguration = null;
 	private Map< String, String > entryPoints = new HashMap<>();
 	private List< String > includeList = new ArrayList<>();
 	private List< String > libList = new ArrayList<>();
@@ -493,5 +495,15 @@ public class Arguments
 	public void setLibList( List< String > libList )
 	{
 		this.libList = libList;
+	}
+
+	public Map< String, Configuration > getInternalConfiguration()
+	{
+		return internalConfiguration;
+	}
+
+	public void setInternalConfiguration( Map< String, Configuration > internalConfiguration )
+	{
+		this.internalConfiguration = internalConfiguration;
 	}
 }

@@ -19,21 +19,19 @@
  *   For details about the authors of this software, see the AUTHORS file. *
  ***************************************************************************/
 
-
 package jolie.runtime.embedding;
-
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Path;
-import java.util.*;
-import java.util.concurrent.Future;
-import java.util.regex.Pattern;
 
 import jolie.CommandLineException;
 import jolie.CommandLineParser;
 import jolie.Interpreter;
 import jolie.runtime.expression.Expression;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.Future;
+import java.util.regex.Pattern;
 
 public class JolieServiceLoader extends EmbeddedServiceLoader
 {

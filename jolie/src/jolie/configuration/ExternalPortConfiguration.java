@@ -38,50 +38,51 @@ public class ExternalPortConfiguration implements PortConfiguration
 	@Override
 	public List< Process > configure( VariablePath locationVariablePath, VariablePath protocolVariablePath )
 	{
-		if ( port.getEmbedding() != null ) try {
-			Configuration configuration = configurationTree.get( port.getEmbedding() );
-			if ( configuration == null ) {
-				throw new IllegalStateException( "Cannot find configuration for '" + port.getEmbedding() +
-						"'. Which was needed for embedding in output port '" + port.getName() + "'" );
-			}
+		if ( port.getEmbedding() != null ) {
+			try {
+				Configuration configuration = configurationTree.get( port.getEmbedding() );
+				if ( configuration == null ) {
+					throw new IllegalStateException( "Cannot find configuration for '" + port.getEmbedding() +
+							"'. Which was needed for embedding in output port '" + port.getName() + "'" );
+				}
 
-			CommandLineParser cli = interpreter.cmdParser().makeCopy( arguments -> {
-				arguments.setPackageSelf( configuration.getPackageName() );
-				arguments.setDeploymentProfile( configuration.getProfileName() );
-				arguments.setProgramArguments( Collections.emptyList() );
-			} );
+				CommandLineParser cli = interpreter.cmdParser().makeCopy( arguments -> {
+					arguments.setPackageSelf( configuration.getPackageName() );
+					arguments.setDeploymentProfile( configuration.getProfileName() );
+					arguments.setProgramArguments( Collections.emptyList() );
+				} );
 
-			// TODO This isn't a pretty solution.
-			// But we need to postpone this embedding procedure, such that the variables are setup properly.
-			return Collections.singletonList( new Process()
-			{
-				@Override
-				public void run() throws FaultException, ExitingException
+				// TODO This isn't a pretty solution.
+				// But we need to postpone this embedding procedure, such that the variables are setup properly.
+				return Collections.singletonList( new Process()
 				{
-					try {
-						JolieServiceLoader loader = new JolieServiceLoader( locationVariablePath, cli );
-						loader.load();
-					} catch ( EmbeddedServiceLoadingException | IOException e ) {
-						throw new RuntimeException("Unable to embed external service", e); // TODO Make a more clean exit
+					@Override
+					public void run() throws FaultException, ExitingException
+					{
+						try {
+							JolieServiceLoader loader = new JolieServiceLoader( locationVariablePath, cli );
+							loader.load();
+						} catch ( EmbeddedServiceLoadingException | IOException e ) {
+							throw new RuntimeException( "Unable to embed external service", e ); // TODO Make a more clean exit
+						}
 					}
-				}
 
-				@Override
-				public Process clone( TransformationReason reason )
-				{
-					return null;
-				}
+					@Override
+					public Process clone( TransformationReason reason )
+					{
+						return null;
+					}
 
-				@Override
-				public boolean isKillable()
-				{
-					return false;
-				}
-			} );
-		} catch ( IOException | CommandLineException e ) {
-			throw new RuntimeException( e );
-		}
-		else {
+					@Override
+					public boolean isKillable()
+					{
+						return false;
+					}
+				} );
+			} catch ( IOException | CommandLineException e ) {
+				throw new RuntimeException( e );
+			}
+		} else {
 			Value protocolValue = port.getProtocolProperties() != null ?
 					port.getProtocolProperties().clone() :
 					Value.create();

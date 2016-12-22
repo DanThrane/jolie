@@ -19,20 +19,17 @@
  *   For details about the authors of this software, see the AUTHORS file. *
  ***************************************************************************/
 
-
 package jolie.runtime.embedding;
 
 import jolie.Interpreter;
 import jolie.lang.Constants;
+import jolie.lang.parse.ast.ConfigurationTree;
 import jolie.lang.parse.ast.Program;
 import jolie.lang.parse.context.ParsingContext;
 import jolie.net.CommChannel;
 import jolie.runtime.Value;
 import jolie.runtime.VariablePath;
 import jolie.runtime.expression.Expression;
-
-import java.io.File;
-import java.net.URI;
 
 public abstract class EmbeddedServiceLoader
 {
@@ -50,38 +47,40 @@ public abstract class EmbeddedServiceLoader
 	)
 		throws EmbeddedServiceLoaderCreationException
 	{
-		EmbeddedServiceLoader ret = null;
 		try {
-			if ( configuration.isInternal() ) {
-				InternalEmbeddedServiceConfiguration internalConfiguration = (InternalEmbeddedServiceConfiguration) configuration;
-				ret = new InternalJolieServiceLoader( channelDest, interpreter, internalConfiguration.serviceName(), internalConfiguration.program() );
-			} else {
-				ExternalEmbeddedServiceConfiguration externalConfiguration = (ExternalEmbeddedServiceConfiguration) configuration;
-				switch( configuration.type() ) {
-					case JAVA:
-						ret = new JavaServiceLoader( channelDest, externalConfiguration.servicePath(), interpreter );
-						break;
-					case JOLIE:
-						ParsingContext parsingContext = externalConfiguration.parsingContext();
-						URI source = parsingContext != null ? parsingContext.source() : new File( "." ).toURI();
-						ret = new JolieServiceLoader( channelDest, interpreter, externalConfiguration.servicePath()
-						);
-						break;
-					default:
-						String serviceType = configuration.type().toString();
-						EmbeddedServiceLoaderFactory factory = interpreter.getEmbeddedServiceLoaderFactory( serviceType );
-						if ( factory == null ) {
-							throw new EmbeddedServiceLoaderCreationException( "Could not find extension to load services of type " + serviceType );
-						}
-						ret = factory.createLoader( interpreter, serviceType, externalConfiguration.servicePath(), channelDest );
-						break;
+			switch ( configuration.type() ) {
+				case INTERNAL: {
+					InternalEmbeddedServiceConfiguration internalConfiguration = ( InternalEmbeddedServiceConfiguration ) configuration;
+					return new InternalJolieServiceLoader( channelDest, interpreter, internalConfiguration.serviceName(), internalConfiguration.program() );
+				}
+				case JOLIE_PACKAGE: {
+					return new JoliePackageServiceLoader(
+							channelDest,
+							interpreter,
+							(EmbeddedPackageServiceConfiguration) configuration
+					);
+				}
+				case JAVA: {
+					ExternalEmbeddedServiceConfiguration externalConfiguration = ( ExternalEmbeddedServiceConfiguration ) configuration;
+					return new JavaServiceLoader( channelDest, externalConfiguration.servicePath(), interpreter );
+				}
+				case JOLIE: {
+					ExternalEmbeddedServiceConfiguration externalConfiguration = ( ExternalEmbeddedServiceConfiguration ) configuration;
+					return new JolieServiceLoader( channelDest, interpreter, externalConfiguration.servicePath() );
+				}
+				default: {
+					ExternalEmbeddedServiceConfiguration externalConfiguration = ( ExternalEmbeddedServiceConfiguration ) configuration;
+					String serviceType = configuration.type().toString();
+					EmbeddedServiceLoaderFactory factory = interpreter.getEmbeddedServiceLoaderFactory( serviceType );
+					if ( factory == null ) {
+						throw new EmbeddedServiceLoaderCreationException( "Could not find extension to load services of type " + serviceType );
+					}
+					return factory.createLoader( interpreter, serviceType, externalConfiguration.servicePath(), channelDest );
 				}
 			}
 		} catch( Exception e ) {
 			throw new EmbeddedServiceLoaderCreationException( e );
 		}
-
-		return ret;
 	}
 
 	public static EmbeddedServiceLoader create(
@@ -202,5 +201,28 @@ public abstract class EmbeddedServiceLoader
 			return parsingContext;
 		}
 
+	}
+
+	public static class EmbeddedPackageServiceConfiguration extends EmbeddedServiceConfiguration
+	{
+		private final String packageName;
+		private final ConfigurationTree.Region configurationRegion;
+
+		public EmbeddedPackageServiceConfiguration( String packageName, ConfigurationTree.Region configurationRegion )
+		{
+			super( Constants.EmbeddedServiceType.JOLIE_PACKAGE );
+			this.packageName = packageName;
+			this.configurationRegion = configurationRegion;
+		}
+
+		public String packageName()
+		{
+			return packageName;
+		}
+
+		public ConfigurationTree.Region configurationRegion()
+		{
+			return configurationRegion;
+		}
 	}
 }

@@ -133,6 +133,7 @@ public class Scanner
 		PROFILE,			///< profile
 		CONFIGURES,			///< configures
 		EMBEDS,				///< configures
+		REPUBLISH,			///< republish
 		ERROR				///< Scanner error
 	}
 	
@@ -190,6 +191,7 @@ public class Scanner
 		unreservedKeywords.put( "profile", TokenType.PROFILE );
 		unreservedKeywords.put( "configures", TokenType.CONFIGURES );
 		unreservedKeywords.put( "embeds", TokenType.EMBEDS );
+		unreservedKeywords.put( "republish", TokenType.REPUBLISH );
 	}
 	
 	/**
