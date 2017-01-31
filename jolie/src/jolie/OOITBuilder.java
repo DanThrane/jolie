@@ -565,6 +565,14 @@ public class OOITBuilder implements OLVisitor
 		URI location = getLocationForInputPort( n, configuration );
 		locationPath.getValue().setValue( location.toString() );
 
+		if ( n.protocolId() == null ) {
+			if ( !location.toString().equals( Constants.LOCAL_LOCATION_KEYWORD ) &&
+					!Constants.LOCAL_LOCATION_KEYWORD.equals( location.getScheme() ) ) {
+				error( n.context(), "expected protocol for inputPort " + n.id() );
+				return;
+			}
+		}
+
 		PortConfiguration portConfiguration = getProtocolConfigurationForInputPort( n, configuration );
 		List< Process > configurationProcesses = portConfiguration.configure( locationPath, protocolPath );
 

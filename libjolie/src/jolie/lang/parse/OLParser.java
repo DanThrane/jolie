@@ -385,7 +385,7 @@ public class OLParser extends AbstractParser
 				} else {
 					getToken();
 					eat( Scanner.TokenType.COLON, "expected : after embedded service type" );
-					checkConstant(); // TODO Still need to do this
+					checkConstant();
 					while ( token.is( Scanner.TokenType.STRING ) ) {
 						servicePath = token.content();
 						getToken();
@@ -1116,10 +1116,7 @@ public class OLParser extends AbstractParser
 		if ( !isExternal ) {
 			if ( inputPortLocation == null && locationPathNode == null ) {
 				throwException( "expected location URI for " + inputPortName );
-			} /*else if ( protocolId == null && ( inputPortLocation == null || !inputPortLocation.toString().equals( Constants.LOCAL_LOCATION_KEYWORD ) )
-					&& !inputPortLocation.getScheme().equals( Constants.LOCAL_LOCATION_KEYWORD ) ) {
-				throwException( "expected protocol for inputPort " + inputPortName );
-			}*/ // TODO FIXME We need to deal with protocols at a later time
+			}
 		}
 		if ( iface.operationsMap().isEmpty() && redirectionMap.isEmpty() && aggregationList.isEmpty() ) {
 			throwException( "expected at least one operation, interface, aggregation or redirection for inputPort " +
