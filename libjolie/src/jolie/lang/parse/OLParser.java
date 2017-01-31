@@ -519,17 +519,16 @@ public class OLParser extends AbstractParser
 							constantsMap.put( cId, token );
 						}
 						getToken();
-						return;
+					} else {
+						COLParser colParser = new COLParser( scanner(), null, false );
+						colParser.setToken( token );
+						OLSyntaxNode valueNode = colParser.parseConstantValue();
+						token = colParser.getCurrentToken();
+
+						InternalConstantDefinitionNode node =
+								new InternalConstantDefinitionNode( getContext(), cId, valueNode );
+						constantsNode.addDefinition( node );
 					}
-
-					COLParser colParser = new COLParser( scanner(), null, true );
-					colParser.setToken( token );
-					OLSyntaxNode valueNode = colParser.parseConstantValue();
-					token = colParser.getCurrentToken();
-
-					InternalConstantDefinitionNode node =
-							new InternalConstantDefinitionNode( getContext(), cId, valueNode );
-					constantsNode.addDefinition( node );
 				} else if ( token.is( Scanner.TokenType.COLON ) ) {
 					getToken();
 					// This will need to go in the same scope as all other types. We add the hash to ensure that
@@ -1069,7 +1068,7 @@ public class OLParser extends AbstractParser
 				}
 				getToken();
 				eat( Scanner.TokenType.COLON, "expected :" );
-				checkConstant(); // Uses legacy identifier constants. TODO Ext protocol identifiers
+				checkConstant(); // Uses legacy identifier constants.
 				assertToken( Scanner.TokenType.ID, "expected protocol identifier" );
 				protocolId = token.content();
 				getToken();
@@ -1303,7 +1302,7 @@ public class OLParser extends AbstractParser
 
 				getToken();
 				eat( Scanner.TokenType.COLON, "expected :" );
-				checkConstant(); // Uses legacy identifier constants. TODO Ext protocol constants
+				checkConstant(); // Uses legacy identifier constants.
 
 				assertToken( Scanner.TokenType.ID, "expected protocol identifier" );
 				p.setProtocolId( token.content() );
