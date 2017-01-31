@@ -107,9 +107,23 @@ public class OLParser extends AbstractParser
 		this.packageLocation = packageLocation;
 	}
 
-	public void putConstants( Map< String, Scanner.Token > constantsToPut )
+	public void putConstants( Map< String, Object > constantsToPut )
 	{
-		constantsMap.putAll( constantsToPut );
+		if ( constantsNode == null ) {
+			constantsNode = new ConstantsNode( getContext() ); // TODO Context is going to be wrong
+			program.addChild( constantsNode );
+		}
+
+		constantsToPut.forEach( (key, value) -> {
+			if ( value instanceof Scanner.Token ) {
+				constantsMap.put( key, (Scanner.Token) value );
+			} else if ( value instanceof OLSyntaxNode ) {
+				constantsNode.addDefinition( new InternalConstantDefinitionNode( getContext(), key,
+						(OLSyntaxNode) value ) );
+			} else {
+				throw new IllegalStateException( "Internal error: Bad constant from arguments" );
+			}
+		} );
 	}
 
 	public static Map< String, TypeDefinition > createTypeDeclarationMap( ParsingContext context )
@@ -2188,7 +2202,7 @@ public class OLParser extends AbstractParser
 			if ( token.isKeyword( "interface" ) ) {
 				getToken();
 				assertToken( Scanner.TokenType.ID, "expected interface name" );
-				checkConstant(); // Uses legacy identifier constants. I think TODO
+				checkConstant(); // Uses legacy identifier constants.
 				iface = interfaces.get( token.content() );
 				if ( iface == null ) {
 					throwException( "undefined interface: " + token.content() );

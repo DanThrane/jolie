@@ -3,6 +3,8 @@ package jolie;
 import jolie.configuration.Configuration;
 import jolie.lang.Constants;
 import jolie.lang.parse.Scanner;
+import jolie.lang.parse.ast.expression.*;
+import jolie.lang.parse.context.URIParsingContext;
 import jolie.runtime.correlation.CorrelationEngine;
 
 import java.io.*;
@@ -25,7 +27,8 @@ public class Arguments
 	private List< String > optionsList = new ArrayList<>();
 	private List< String > programArguments = new ArrayList<>();
 	private String charset = null;
-	private Map< String, Scanner.Token > constants = new HashMap< String, Scanner.Token >();
+	// Identifier constants doesn't fit into this. Value is either a Token or OLSyntaxNode
+	private Map< String, Object > constants = new HashMap<>();
 	private boolean typeCheck = false;
 	private boolean tracer = false;
 	private boolean check = false;
@@ -264,7 +267,9 @@ public class Arguments
 	{
 		try {
 			// for command line options use the system's default charset (null)
-			Scanner scanner = new Scanner( new ByteArrayInputStream( input.getBytes() ), new URI( "urn:CommandLine" ), null );
+			URI source = new URI( "urn:CommandLine" );
+			URIParsingContext context = new URIParsingContext( source, 1 );
+			Scanner scanner = new Scanner( new ByteArrayInputStream( input.getBytes() ), source, null );
 			Scanner.Token token = scanner.getToken();
 			if ( token.is( Scanner.TokenType.ID ) ) {
 				String id = token.content();
@@ -273,10 +278,36 @@ public class Arguments
 					throw new IOException( "expected = after constant identifier " + id + ", found token type " + token.type() );
 				}
 				token = scanner.getToken();
-				if ( !token.isValidConstant() ) {
-					throw new IOException( "expected constant value for constant identifier " + id + ", found token type " + token.type() );
+
+				Object output;
+
+				switch ( token.type() ) {
+					case STRING:
+						output = new ConstantStringExpression( context, token.content() );
+						break;
+					case INT:
+						output = new ConstantIntegerExpression( context, Integer.parseInt( token.content() ) );
+						break;
+					case DOUBLE:
+						output = new ConstantDoubleExpression( context, Double.parseDouble( token.content() ) );
+						break;
+					case LONG:
+						output = new ConstantLongExpression( context, Long.parseLong( token.content() ) );
+						break;
+					case TRUE:
+						output = new ConstantBoolExpression( context, true );
+						break;
+					case FALSE:
+						output = new ConstantBoolExpression( context, false );
+						break;
+					case ID:
+						output = token;
+						break;
+					default:
+						throw new IOException( "expected constant value for constant identifier " + id + ", found token type " + token.type() );
 				}
-				constants.put( id, token );
+
+				constants.put( id, output );
 			} else {
 				throw new IOException( "expected constant identifier, found token type " + token.type() );
 			}
@@ -327,7 +358,7 @@ public class Arguments
 		return programArguments;
 	}
 
-	public Map< String, Scanner.Token > getConstants()
+	public Map< String, Object> getConstants()
 	{
 		return constants;
 	}
@@ -427,7 +458,7 @@ public class Arguments
 		this.charset = charset;
 	}
 
-	public void setConstants( Map< String, Scanner.Token > constants )
+	public void setConstants( Map< String, Object > constants )
 	{
 		this.constants = constants;
 	}

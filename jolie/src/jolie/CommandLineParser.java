@@ -334,7 +334,7 @@ public class CommandLineParser implements Closeable
 	 * Returns a map containing the constants defined by command line.
 	 * @return a map containing the constants defined by command line
 	 */
-	public Map< String, Scanner.Token > definedConstants()
+	public Map< String, Object > definedConstants()
 	{
 		return arguments.getConstants();
 	}

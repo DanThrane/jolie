@@ -51,7 +51,7 @@ public class ParsingUtils
 		String charset,
 		String[] includePaths,
 		ClassLoader classLoader,
-		Map< String, Scanner.Token > definedConstants,
+		Map< String, Object > definedConstants,
 		SemanticVerifier.Configuration configuration
 	)
 		throws IOException, ParserException, SemanticException
@@ -72,7 +72,7 @@ public class ParsingUtils
 		String charset,
 		String[] includePaths,
 		ClassLoader classLoader,
-		Map< String, Scanner.Token > definedConstants
+		Map< String, Object > definedConstants
 	)
 		throws IOException, ParserException, SemanticException
 	{
