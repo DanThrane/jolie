@@ -62,6 +62,18 @@ class ValueLink extends Value implements Cloneable
 		return getLinkedValue();
 	}
 
+	@Override
+	public void setConstant( boolean constant )
+	{
+		getLinkedValue().setConstant( constant );
+	}
+
+	@Override
+	public boolean isConstant()
+	{
+		return getLinkedValue().isConstant();
+	}
+
 	public boolean hasChildren()
 	{
 		return getLinkedValue().hasChildren();
@@ -123,17 +135,21 @@ class ValueLink extends Value implements Cloneable
 class ValueImpl extends Value implements Cloneable, Serializable
 {
 	private static final long serialVersionUID = 1L;
+	private boolean constant = false;
 	
 	private volatile Object valueObject = null;
 	private final AtomicReference< Map< String, ValueVector > > children = new AtomicReference<>();
 	
 	public void setValueObject( Object object )
 	{
-		valueObject = object;
+		if ( !isConstant() ) {
+			valueObject = object;
+		}
 	}
 
 	public ValueVector getChildren( String childId )
 	{
+		// TODO The value vector should be constant too
 		return children().computeIfAbsent( childId, k -> ValueVector.create() );
 	}
 
@@ -154,9 +170,29 @@ class ValueImpl extends Value implements Cloneable, Serializable
 	{
 		return this;
 	}
-	
+
+	@Override
+	public void setConstant( boolean constant )
+	{
+		this.constant = constant;
+		children().forEach( (key, vector) -> vector.forEach( it -> it.setConstant( constant ) ) );
+	}
+
+	@Override
+	public boolean isConstant()
+	{
+		return constant;
+	}
+
 	public void erase()
 	{
+		if ( isConstant() ) {
+			// TODO How do we handle this
+			// TODO How do we handle this
+			// TODO How do we handle this
+			// TODO How do we handle this
+			// TODO How do we handle this
+		}
 		valueObject = null;
 		children.set( null );
 	}
@@ -186,6 +222,7 @@ class ValueImpl extends Value implements Cloneable, Serializable
 		 * TODO: check if a << b | b << a can generate deadlocks
 		 */
 		assignValue( value );
+		setConstant(value.isConstant());
 
 		if ( value.hasChildren() ) {
 			int i;
@@ -279,6 +316,18 @@ class RootValueImpl extends Value implements Cloneable
 		return this;
 	}
 
+	@Override
+	public void setConstant( boolean constant )
+	{
+		throw new IllegalStateException( "Cannot mark RootValue as constant" );
+	}
+
+	@Override
+	public boolean isConstant()
+	{
+		return false;
+	}
+
 	public void erase()
 	{
 		children.clear();
@@ -347,12 +396,7 @@ class CSetValue extends ValueImpl
 	@Override
 	public void setValueObject( Object object )
 	{
-		//CommCore commCore = Interpreter.getInstance().commCore();
-		//synchronized( commCore.correlationLock() )
-			//removeFromRadixTree();
-			super.setValueObject( object );
-			//addToRadixTree();
-		//}
+		super.setValueObject( object );
 	}
 
 	@Override
@@ -532,7 +576,11 @@ public abstract class Value implements Expression, Cloneable
 	{
 		setValueObject( object );
 	}
-		
+
+	public abstract void setConstant( boolean constant );
+
+	public abstract boolean isConstant();
+
 	public final synchronized boolean equals( Value val )
 	{
 		boolean r = false;

@@ -54,6 +54,7 @@ public class DeepCopyProcess implements Process
 		} else {
 			leftPath.getValue().deepCopy( rightExpression.evaluate() );
 		}
+		leftPath.getValue().setConstant( false );
 	}
 	
 	public boolean isKillable()

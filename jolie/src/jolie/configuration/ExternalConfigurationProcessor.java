@@ -85,7 +85,7 @@ public class ExternalConfigurationProcessor
 		}
 	}
 
-	private Pair< String, Value > processConstant( ConfigurationTree.ExternalConstant constant )
+	private Pair< String, Value > processConstant( ConfigurationTree.ExternalConstantConfigNode constant )
 	{
 		return new Pair<>( constant.getName(), evaluateNode( constant.getExpressionNode() ) );
 	}

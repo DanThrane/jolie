@@ -22,24 +22,25 @@
 package jolie.process;
 
 import jolie.ExecutionThread;
+import jolie.runtime.*;
 import jolie.runtime.expression.Expression;
-import jolie.runtime.VariablePath;
-import jolie.runtime.InvalidIdException;
-import jolie.runtime.Value;
 
-/** Assigns an expression value to a VariablePath.
+/**
+ * Assigns an expression value to a VariablePath.
+ *
+ * @author Fabrizio Montesi
  * @see Expression
  * @see VariablePath
- * @author Fabrizio Montesi
  */
 public class AssignmentProcess implements Process, Expression
 {
 	final private VariablePath varPath;
 	final private Expression expression;
 
-	/** Constructor.
-	 * 
-	 * @param varPath the variable which will receive the value
+	/**
+	 * Constructor.
+	 *
+	 * @param varPath    the variable which will receive the value
 	 * @param expression the expression of which the evaluation will be stored in the variable
 	 */
 	public AssignmentProcess( VariablePath varPath, Expression expression )
@@ -47,38 +48,55 @@ public class AssignmentProcess implements Process, Expression
 		this.varPath = varPath;
 		this.expression = expression;
 	}
-	
+
 	public Process clone( TransformationReason reason )
 	{
 		return new AssignmentProcess(
-					(VariablePath)varPath.cloneExpression( reason ),
-					expression.cloneExpression( reason )
-				);
+				( VariablePath ) varPath.cloneExpression( reason ),
+				expression.cloneExpression( reason )
+		);
 	}
-	
+
 	public Expression cloneExpression( TransformationReason reason )
 	{
 		return new AssignmentProcess(
-					(VariablePath)varPath.cloneExpression( reason ),
-					expression.cloneExpression( reason )
-				);
+				( VariablePath ) varPath.cloneExpression( reason ),
+				expression.cloneExpression( reason )
+		);
 	}
-	
-	/** Evaluates the expression and stores its value in the variable. */
-	public void run()
+
+	/**
+	 * Evaluates the expression and stores its value in the variable.
+	 */
+	@Override
+	public void run() throws FaultException, ExitingException
 	{
-		if ( ExecutionThread.currentThread().isKilled() )
+		ExecutionThread thread = ExecutionThread.currentThread();
+		if ( thread == null || thread.isKilled() ) {
 			return;
-		varPath.getValue().assignValue( expression.evaluate() );
+		}
+		// TODO How do we handle this?
+		// TODO How do we handle this?
+		// TODO How do we handle this?
+		// Throwing a fault seems to be the wrong thing, but it appears that all other exceptions will be ignored
+		Value value = varPath.getValue();
+		if ( !value.isConstant() ) {
+			value.assignValue( expression.evaluate() );
+		}
 	}
-	
+
 	public Value evaluate()
 	{
 		Value val = varPath.getValue();
-		val.assignValue( expression.evaluate() );
+		if ( !val.isConstant() ) {
+			// TODO How do we handle this?
+			// TODO How do we handle this?
+			// TODO How do we handle this?
+			val.assignValue( expression.evaluate() );
+		}
 		return val;
 	}
-	
+
 	public boolean isKillable()
 	{
 		return true;

@@ -21,7 +21,9 @@
 
 package jolie.process;
 
+import jolie.ExecutionThread;
 import jolie.Interpreter;
+import jolie.configuration.ExternalConstant;
 import jolie.net.ports.OutputPort;
 import jolie.runtime.ExitingException;
 import jolie.runtime.FaultException;
@@ -43,6 +45,23 @@ public class InitDefinitionProcess extends DefinitionProcess
 	{
 		Interpreter interpreter = Interpreter.getInstance();
 		try {
+			assert interpreter != null;
+
+			for ( ExternalConstant externalConstant : interpreter.externalConstants() ) {
+				try {
+					// This will be available to all processes since they all clone our state after initialization
+					externalConstant.initializationProcess().run();
+				} catch ( ExitingException e ) {
+					interpreter.logSevere( e );
+					assert false;
+				}
+			}
+
+			Value root = ExecutionThread.currentThread().state().root();
+			for ( ExternalConstant externalConstant : interpreter.externalConstants() ) {
+				root.getFirstChild( externalConstant.name() ).setConstant( true );
+			}
+
 			for( OutputPort outputPort : interpreter.outputPorts() ) {
 				try {
 					outputPort.configurationProcess().run();

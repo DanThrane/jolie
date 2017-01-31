@@ -20,7 +20,6 @@
 package jolie.lang.parse;
 
 import jolie.lang.parse.ast.ConfigurationTree;
-import jolie.lang.parse.ast.ConfigurationTree.ExternalConstant;
 import jolie.lang.parse.ast.ConfigurationTree.ExternalPort;
 import jolie.lang.parse.ast.ConfigurationTree.PortProtocol;
 import jolie.lang.parse.ast.ConfigurationTree.Region;
@@ -31,7 +30,6 @@ import jolie.util.Pair;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -196,7 +194,7 @@ public class COLParser extends AbstractParser
 		}
 	}
 
-	private ExternalConstant parseConstantDefinition() throws ParserException, IOException
+	private ConfigurationTree.ExternalConstantConfigNode parseConstantDefinition() throws ParserException, IOException
 	{
 		assertToken( ID, "expected identifier for beginning of constant definition" );
 		String name = token.content();
@@ -206,7 +204,7 @@ public class COLParser extends AbstractParser
 		getToken();
 
 		OLSyntaxNode value = parseValue();
-		return new ExternalConstant( name, value );
+		return new ConfigurationTree.ExternalConstantConfigNode( name, value );
 	}
 
 	public void setToken( Scanner.Token token )

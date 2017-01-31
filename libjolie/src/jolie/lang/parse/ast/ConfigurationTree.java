@@ -29,7 +29,7 @@ public class ConfigurationTree
 		private String profileName;
 		private String packageName;
 		private final List< ExternalPort > ports = new ArrayList<>();
-		private final List< ExternalConstant > constants = new ArrayList<>();
+		private final List< ExternalConstantConfigNode > constants = new ArrayList<>();
 
 		public String getProfileName()
 		{
@@ -56,7 +56,7 @@ public class ConfigurationTree
 			ports.add( port );
 		}
 
-		public void addConstant( ExternalConstant constant )
+		public void addConstant( ExternalConstantConfigNode constant )
 		{
 			constants.add( constant );
 		}
@@ -66,7 +66,7 @@ public class ConfigurationTree
 			return Collections.unmodifiableList( ports );
 		}
 
-		public List< ExternalConstant > getConstants()
+		public List< ExternalConstantConfigNode > getConstants()
 		{
 			return Collections.unmodifiableList( constants );
 		}
@@ -83,13 +83,13 @@ public class ConfigurationTree
 		}
 	}
 
-	public static class ExternalConstant
+	public static class ExternalConstantConfigNode
 	{
 		private final String name;
 		private final OLSyntaxNode expressionNode;
 
 
-		public ExternalConstant( String name, OLSyntaxNode expressionNode )
+		public ExternalConstantConfigNode( String name, OLSyntaxNode expressionNode )
 		{
 			this.name = name;
 			this.expressionNode = expressionNode;
@@ -111,7 +111,7 @@ public class ConfigurationTree
 			if ( this == o ) return true;
 			if ( o == null || getClass() != o.getClass() ) return false;
 
-			ExternalConstant that = (ExternalConstant) o;
+			ExternalConstantConfigNode that = (ExternalConstantConfigNode ) o;
 
 			if ( !name.equals( that.name ) ) return false;
 			return expressionNode.equals( that.expressionNode );
@@ -129,7 +129,7 @@ public class ConfigurationTree
 		@Override
 		public String toString()
 		{
-			return "ExternalConstant{" +
+			return "ExternalConstantConfigNode{" +
 					"name='" + name + '\'' +
 					", expressionNode=" + expressionNode +
 					'}';

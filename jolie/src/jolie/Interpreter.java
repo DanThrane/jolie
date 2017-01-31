@@ -21,9 +21,11 @@
 
 package jolie;
 
+import jolie.configuration.ExternalConstant;
 import jolie.lang.Constants;
 import jolie.lang.parse.*;
 import jolie.lang.parse.Scanner;
+import jolie.lang.parse.ast.ConfigurationTree;
 import jolie.lang.parse.ast.Program;
 import jolie.monitoring.MonitoringEvent;
 import jolie.monitoring.events.MonitorAttachedEvent;
@@ -226,6 +228,7 @@ public class Interpreter
 	private final Map< String, DefinitionProcess > definitions = new HashMap<>();
 	private final Map< String, OutputPort > outputPorts = new HashMap<>();
 	private final Map< String, InputOperation > inputOperations = new HashMap<>();
+	private final Map< String, ExternalConstant > externalConstants = new HashMap<>();
 	
 	private final HashMap< String, Object > locksMap = new HashMap<>();
 	
@@ -394,6 +397,16 @@ public class Interpreter
 	{
 		return outputPorts.values();
 	}
+
+	public Collection< ExternalConstant > externalConstants()
+	{
+		return externalConstants.values();
+	}
+
+	public boolean isExternalConstant( String root )
+	{
+		return externalConstants.containsKey( root );
+	}
 		
 	/**
 	 * Returns the InputOperation identified by key.
@@ -501,6 +514,11 @@ public class Interpreter
 	public void register( String key, DefinitionProcess value )
 	{
 		definitions.put( key, value );
+	}
+
+	public void register( String key, ExternalConstant constant )
+	{
+		externalConstants.put( key, constant );
 	}
 
 	/**
@@ -1129,6 +1147,7 @@ public class Interpreter
 		initExecutionThread = null;
 		sessionStarters = new HashMap<>();
 		outputPorts.clear();
+		externalConstants.clear();
 		correlationSets.clear();
 		globalValue.erase();
 		embeddedServiceLoaders.clear();
