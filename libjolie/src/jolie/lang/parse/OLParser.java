@@ -512,6 +512,7 @@ public class OLParser extends AbstractParser
 				getToken();
 				if ( token.is( Scanner.TokenType.ASSIGN ) ) {
 					getToken();
+					/*
 					if ( !token.isValidConstant() ) {
 						throwException( "expected string, integer, double or identifier constant" );
 					}
@@ -519,10 +520,19 @@ public class OLParser extends AbstractParser
 						constantsMap.put( cId, token );
 					}
 					getToken();
+					*/
+					COLParser colParser = new COLParser( scanner(), null, true );
+					colParser.setToken( token );
+					OLSyntaxNode valueNode = colParser.parseConstantValue();
+					token = colParser.getCurrentToken();
+
+					InternalConstantDefinitionNode node =
+							new InternalConstantDefinitionNode( getContext(), cId, valueNode );
+					constantsNode.addDefinition( node );
 				} else if ( token.is( Scanner.TokenType.COLON ) ) {
 					getToken();
-					// Add a hash just in case this somehow leaks out. This way we cannot refer to it with a legal
-					// identifier
+					// This will need to go in the same scope as all other types. We add the hash to ensure that
+					// we don't collide and that we cannot reference it from a legal Jolie program
 					TypeDefinition type = parseType( cId + "#ConstantType" );
 					ExternalConstantDefinitionNode node = new ExternalConstantDefinitionNode( getContext(), cId, type );
 					constantsNode.addDefinition( node );

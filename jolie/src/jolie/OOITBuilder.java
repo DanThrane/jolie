@@ -1174,7 +1174,7 @@ public class OOITBuilder implements OLVisitor
 		}
 
 		String rootKey = internalPath[ 0 ].key().evaluate().strValue();
-		boolean isConstant = interpreter.isExternalConstant( rootKey );
+		boolean isConstant = interpreter.isConstant( rootKey );
 
 		if ( !allowConstant && isConstant ) {
 			error( path.context(), "Constant expression is not allowed here" );
@@ -1792,6 +1792,20 @@ public class OOITBuilder implements OLVisitor
 	}
 
 	@Override
+	public void visit( InternalConstantDefinitionNode n )
+	{
+		Expression value = buildExpression( n.value() );
+		// Setup value initialization
+		List< Process > children = new LinkedList<>();
+		children.add( new DeepCopyProcess( buildVariablePathToConstant( n ), value ) );
+		Process process = new SequentialProcess( children.toArray( new Process[ children.size() ] ) );
+
+		// Register at interpreter. Will be fully initialized in InitDefinitionProcess
+		Constant extConstant = new Constant( n.name(), process );
+		interpreter.register( n.name(), extConstant );
+	}
+
+	@Override
 	public void visit( ExternalConstantDefinitionNode n )
 	{
 		Configuration configuration = configurationTree.get( configurationProfile );
@@ -1831,7 +1845,7 @@ public class OOITBuilder implements OLVisitor
 		Process process = new SequentialProcess( children.toArray( new Process[ children.size() ] ) );
 
 		// Register at interpreter. Will be fully initialized in InitDefinitionProcess
-		ExternalConstant extConstant = new ExternalConstant( n.name(), process );
+		Constant extConstant = new Constant( n.name(), process );
 		interpreter.register( n.name(), extConstant );
 	}
 

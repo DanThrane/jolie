@@ -152,12 +152,7 @@ public class COLParser extends AbstractParser
 		return parseInlineRegion( profileName, packageName );
 	}
 
-	public void foreignInit()
-	{
-
-	}
-
-	public Region parseInlineRegion( String profileName, String packageName ) throws IOException, ParserException
+	Region parseInlineRegion( String profileName, String packageName ) throws IOException, ParserException
 	{
 		currentRegion = new Region();
 		currentRegion.setProfileName( profileName );
@@ -203,16 +198,16 @@ public class COLParser extends AbstractParser
 		assertToken( ASSIGN, "expected '=' in constant definition" );
 		getToken();
 
-		OLSyntaxNode value = parseValue();
+		OLSyntaxNode value = parseConstantValue();
 		return new ConfigurationTree.ExternalConstantConfigNode( name, value );
 	}
 
-	public void setToken( Scanner.Token token )
+	void setToken( Scanner.Token token )
 	{
 		this.token = token;
 	}
 
-	public Scanner.Token getCurrentToken()
+	Scanner.Token getCurrentToken()
 	{
 		return token;
 	}
@@ -277,7 +272,7 @@ public class COLParser extends AbstractParser
 		}
 	}
 
-	private OLSyntaxNode parseValue() throws IOException, ParserException
+	OLSyntaxNode parseConstantValue() throws IOException, ParserException
 	{
 		OLSyntaxNode root = parsePrimitiveValue();
 		if ( root == null ) throwException( "expected value" );
@@ -322,10 +317,17 @@ public class COLParser extends AbstractParser
 		return result;
 	}
 
-	private OLSyntaxNode parseUnsignedInteger() throws ParserException
+	private OLSyntaxNode parseUnsignedInteger() throws ParserException, IOException
 	{
 		assertToken( INT, "expected int" );
-		return new ConstantIntegerExpression( getContext(), Integer.parseInt( token.content() ) );
+		int value = Integer.parseInt( token.content() );
+		ConstantIntegerExpression expr = new ConstantIntegerExpression( getContext(), value );
+		if ( value < 0 )
+		{
+			throwException( "integer value was " + value + ", but value cannot be negative here" );
+		}
+		getToken();
+		return expr;
 	}
 
 	private OLSyntaxNode parseInlineTreeExpression( OLSyntaxNode rootExpression )
@@ -344,7 +346,7 @@ public class COLParser extends AbstractParser
 
 			path = parseVariablePath();
 			eat( Scanner.TokenType.ASSIGN, "expected =" );
-			expression = parseValue();
+			expression = parseConstantValue();
 
 			assignments.add( new Pair<>( path, expression ) );
 

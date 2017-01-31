@@ -1223,9 +1223,10 @@ public class SemanticVerifier implements OLVisitor
 		total.accept( this );
 	}
 
-	// TODO We might need to deal with these.
 	@Override
 	public void visit( ConstantsNode n ) {}
 	@Override
 	public void visit( ExternalConstantDefinitionNode n ) {}
+	@Override
+	public void visit( InternalConstantDefinitionNode n ) {}
 }

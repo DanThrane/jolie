@@ -979,6 +979,8 @@ public class TypeChecker implements OLVisitor
 	public void visit( ConstantsNode n ) {}
 	@Override
 	public void visit( ExternalConstantDefinitionNode n ) {}
+	@Override
+	public void visit( InternalConstantDefinitionNode n ) {}
 
 	@Override
 	public void visit( VoidExpressionNode n ) {}

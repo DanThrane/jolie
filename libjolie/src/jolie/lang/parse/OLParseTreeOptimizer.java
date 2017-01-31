@@ -154,6 +154,9 @@ public class OLParseTreeOptimizer
 		public void visit( ExternalConstantDefinitionNode n ) { }
 
 		@Override
+		public void visit( InternalConstantDefinitionNode n ) { }
+
+		@Override
 		public void visit( EmbeddedServiceNode n )
 		{
 			program.addChild( n );

@@ -128,4 +128,5 @@ public interface OLVisitor
 	public void visit( TypeChoiceDefinition n );
 	public void visit( ConstantsNode n );
 	public void visit( ExternalConstantDefinitionNode n );
+	public void visit( InternalConstantDefinitionNode n );
 }

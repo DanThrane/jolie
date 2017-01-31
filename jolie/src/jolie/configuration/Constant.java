@@ -2,12 +2,12 @@ package jolie.configuration;
 
 import jolie.process.Process;
 
-public class ExternalConstant
+public class Constant
 {
 	private final String name;
 	private final Process initializationProcess;
 
-	public ExternalConstant( String name, Process initializationProcess )
+	public Constant( String name, Process initializationProcess )
 	{
 		this.name = name;
 		this.initializationProcess = initializationProcess;

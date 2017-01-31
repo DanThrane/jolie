@@ -317,11 +317,12 @@ public class ProgramInspectorCreatorVisitor implements OLVisitor
 	@Override
 	public void visit( ProvideUntilStatement n ) {}
 
-	// TODO We might need to deal with these
 	@Override
 	public void visit( ConstantsNode n ) {}
 	@Override
 	public void visit( ExternalConstantDefinitionNode n ) {}
+	@Override
+	public void visit( InternalConstantDefinitionNode n ) {}
 
 	@Override
 	public void visit( TypeChoiceDefinition n )
