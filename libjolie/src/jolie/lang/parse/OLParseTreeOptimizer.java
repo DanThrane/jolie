@@ -126,8 +126,8 @@ public class OLParseTreeOptimizer
 								p.protocolId(),
 								currNode,
 								p.aggregationList(),
-								p.redirectionMap()
-						);
+								p.redirectionMap(),
+								p.locationPathNode() );
 				iport.setExternal( p.isExternal() );
 				iport.operationsMap().putAll( p.operationsMap() );
 				iport.getInterfaceList().addAll( p.getInterfaceList() );

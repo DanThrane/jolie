@@ -385,7 +385,7 @@ public class OLParser extends AbstractParser
 				} else {
 					getToken();
 					eat( Scanner.TokenType.COLON, "expected : after embedded service type" );
-					checkConstant();
+					checkConstant(); // TODO Still need to do this
 					while ( token.is( Scanner.TokenType.STRING ) ) {
 						servicePath = token.content();
 						getToken();
@@ -512,15 +512,16 @@ public class OLParser extends AbstractParser
 				getToken();
 				if ( token.is( Scanner.TokenType.ASSIGN ) ) {
 					getToken();
-					/*
-					if ( !token.isValidConstant() ) {
-						throwException( "expected string, integer, double or identifier constant" );
+
+					if ( token.is( Scanner.TokenType.ID ) ) {
+						// Handle the old identifier constants
+						if ( !constantsMap.containsKey( cId ) ) {
+							constantsMap.put( cId, token );
+						}
+						getToken();
+						return;
 					}
-					if ( !constantsMap.containsKey( cId ) ) {
-						constantsMap.put( cId, token );
-					}
-					getToken();
-					*/
+
 					COLParser colParser = new COLParser( scanner(), null, true );
 					colParser.setToken( token );
 					OLSyntaxNode valueNode = colParser.parseConstantValue();
@@ -1000,9 +1001,10 @@ public class OLParser extends AbstractParser
 	private InputPortInfo parseInputPortInfo( boolean isExternal )
 			throws IOException, ParserException
 	{
-		String inputPortName;
-		String protocolId;
-		URI inputPortLocation;
+		String inputPortName = null;
+		String protocolId = null;
+		URI inputPortLocation = null;
+		VariablePathNode locationPathNode = null;
 		List< InterfaceDefinition > interfaceList = new ArrayList<>();
 		OLSyntaxNode protocolConfiguration = new NullProcessStatement( getContext() );
 
@@ -1013,8 +1015,6 @@ public class OLParser extends AbstractParser
 		eat( Scanner.TokenType.LCURLY, "{ expected" );
 		InterfaceDefinition iface = new InterfaceDefinition( getContext(), "Internal interface for: " + inputPortName );
 
-		inputPortLocation = null;
-		protocolId = null;
 		Map< String, String > redirectionMap = new HashMap<>();
 		List< InputPortInfo.AggregationItemInfo > aggregationList = new ArrayList<>();
 		while ( token.isNot( Scanner.TokenType.RCURLY ) ) {
@@ -1023,19 +1023,26 @@ public class OLParser extends AbstractParser
 			} else if ( token.is( Scanner.TokenType.OP_RR ) ) {
 				parseRequestResponseOperations( iface );
 			} else if ( token.isKeyword( "Location" ) ) {
-				if ( inputPortLocation != null ) {
+				if ( inputPortLocation != null || locationPathNode != null ) {
 					throwException( "Location already defined for service " + inputPortName );
 				}
 				getToken();
 				eat( Scanner.TokenType.COLON, "expected : after Location" );
-				checkConstant();
-				assertToken( Scanner.TokenType.STRING, "expected inputPort location string" );
-				try {
-					inputPortLocation = new URI( token.content() );
-				} catch ( URISyntaxException e ) {
-					throwException( e );
+
+				if ( token.is( Scanner.TokenType.STRING ) ) {
+					try {
+						inputPortLocation = new URI( token.content() );
+					} catch ( URISyntaxException e ) {
+						throwException( e );
+					}
+					getToken();
+				} else if ( token.is( Scanner.TokenType.ID ) ) {
+					locationPathNode = parseVariablePath();
+				} else {
+					throwException( "expected inputPort location string or constant string" );
 				}
-				getToken();
+
+
 			} else if ( token.isKeyword( "Interfaces" ) ) {
 				getToken();
 				eat( Scanner.TokenType.COLON, "expected : after Interfaces" );
@@ -1062,7 +1069,7 @@ public class OLParser extends AbstractParser
 				}
 				getToken();
 				eat( Scanner.TokenType.COLON, "expected :" );
-				checkConstant();
+				checkConstant(); // Uses legacy identifier constants. TODO Ext protocol identifiers
 				assertToken( Scanner.TokenType.ID, "expected protocol identifier" );
 				protocolId = token.content();
 				getToken();
@@ -1108,20 +1115,23 @@ public class OLParser extends AbstractParser
 		eat( Scanner.TokenType.RCURLY, "} expected" );
 
 		if ( !isExternal ) {
-			if ( inputPortLocation == null ) {
+			if ( inputPortLocation == null && locationPathNode == null ) {
 				throwException( "expected location URI for " + inputPortName );
-			} else if ( protocolId == null && !inputPortLocation.toString().equals( Constants.LOCAL_LOCATION_KEYWORD )
+			} /*else if ( protocolId == null && ( inputPortLocation == null || !inputPortLocation.toString().equals( Constants.LOCAL_LOCATION_KEYWORD ) )
 					&& !inputPortLocation.getScheme().equals( Constants.LOCAL_LOCATION_KEYWORD ) ) {
 				throwException( "expected protocol for inputPort " + inputPortName );
-			}
+			}*/ // TODO FIXME We need to deal with protocols at a later time
 		}
 		if ( iface.operationsMap().isEmpty() && redirectionMap.isEmpty() && aggregationList.isEmpty() ) {
 			throwException( "expected at least one operation, interface, aggregation or redirection for inputPort " +
 					inputPortName );
 		}
 
-		InputPortInfo iport = new InputPortInfo( getContext(), inputPortName, inputPortLocation, protocolId,
-				protocolConfiguration, aggregationList.toArray( new InputPortInfo.AggregationItemInfo[ aggregationList.size() ] ), redirectionMap );
+		InputPortInfo iport = new InputPortInfo(
+				getContext(), inputPortName, inputPortLocation, protocolId,
+				protocolConfiguration,
+				aggregationList.toArray( new InputPortInfo.AggregationItemInfo[ aggregationList.size() ] ),
+				redirectionMap, locationPathNode );
 		for ( InterfaceDefinition i : interfaceList ) {
 			iport.addInterface( i );
 		}
@@ -1267,18 +1277,25 @@ public class OLParser extends AbstractParser
 
 				getToken();
 				eat( Scanner.TokenType.COLON, "expected :" );
-				checkConstant();
 
-				assertToken( Scanner.TokenType.STRING, "expected location string" );
-				URI location = null;
-				try {
-					location = new URI( token.content() );
-				} catch ( URISyntaxException e ) {
-					throwException( e );
+				if ( token.is( Scanner.TokenType.STRING ) ) {
+					URI location = null;
+					try {
+						location = new URI( token.content() );
+					} catch ( URISyntaxException e ) {
+						throwException( e );
+					}
+
+					p.setLocation( location );
+					getToken();
+				} else if ( token.is( Scanner.TokenType.ID ) ) {
+					VariablePathNode variablePathNode = parseVariablePath();
+					p.setLocationPath( variablePathNode );
+				} else {
+					throwException( "expected inputPort location string or constant identifier" );
 				}
 
-				p.setLocation( location );
-				getToken();
+
 			} else if ( token.isKeyword( "Protocol" ) ) {
 				if ( p.protocolId() != null ) {
 					throwException( "Protocol already defined for output port " + p.id() );
@@ -1286,7 +1303,7 @@ public class OLParser extends AbstractParser
 
 				getToken();
 				eat( Scanner.TokenType.COLON, "expected :" );
-				checkConstant();
+				checkConstant(); // Uses legacy identifier constants. TODO Ext protocol constants
 
 				assertToken( Scanner.TokenType.ID, "expected protocol identifier" );
 				p.setProtocolId( token.content() );
@@ -1320,7 +1337,7 @@ public class OLParser extends AbstractParser
 		String comment = "";
 		String opId;
 		while ( keepRun ) {
-			checkConstant();
+			checkConstant(); // Uses legacy identifier constants
 			if ( token.is( Scanner.TokenType.DOCUMENTATION_COMMENT ) ) {
 				commentsPreset = true;
 				comment = token.content();
@@ -1375,7 +1392,7 @@ public class OLParser extends AbstractParser
 		String opId;
 		boolean commentsPreset = false;
 		while ( keepRun ) {
-			checkConstant();
+			checkConstant(); // Uses legacy identifier constants
 			if ( token.is( Scanner.TokenType.DOCUMENTATION_COMMENT ) ) {
 				commentsPreset = true;
 				comment = token.content();
@@ -1637,7 +1654,7 @@ public class OLParser extends AbstractParser
 				retVal = parseProvideUntilStatement();
 				break;
 			case ID:
-				checkConstant();
+				//checkConstant();
 				String id = token.content();
 				getToken();
 
@@ -1670,7 +1687,7 @@ public class OLParser extends AbstractParser
 				getToken();
 				eat(
 						Scanner.TokenType.LPAREN, "expected (" );
-				checkConstant();
+				checkConstant(); // Uses legacy identifier constants
 				retVal =
 						new UndefStatement( getContext(), parseVariablePath() );
 				eat(
@@ -1823,7 +1840,7 @@ public class OLParser extends AbstractParser
 				getToken();
 				eat(
 						Scanner.TokenType.LPAREN, "expected (" );
-				checkConstant();
+				checkConstant(); // Uses legacy identifier constants
 
 				assertToken(
 						Scanner.TokenType.ID, "expected scope identifier" );
@@ -1843,7 +1860,7 @@ public class OLParser extends AbstractParser
 				getToken();
 				eat(
 						Scanner.TokenType.LPAREN, "expected (" );
-				checkConstant();
+				checkConstant(); // Uses legacy identifier constants
 
 				assertToken(
 						Scanner.TokenType.ID, "expected scope identifier" );
@@ -1858,7 +1875,7 @@ public class OLParser extends AbstractParser
 				getToken();
 				eat(
 						Scanner.TokenType.LPAREN, "expected (" );
-				checkConstant();
+				checkConstant(); // Uses legacy identifier constants
 
 				assertToken(
 						Scanner.TokenType.ID, "expected fault identifier" );
@@ -2175,7 +2192,7 @@ public class OLParser extends AbstractParser
 			if ( token.isKeyword( "interface" ) ) {
 				getToken();
 				assertToken( Scanner.TokenType.ID, "expected interface name" );
-				checkConstant();
+				checkConstant(); // Uses legacy identifier constants. I think TODO
 				iface = interfaces.get( token.content() );
 				if ( iface == null ) {
 					throwException( "undefined interface: " + token.content() );
@@ -2512,7 +2529,7 @@ public class OLParser extends AbstractParser
 		OLSyntaxNode retVal = null;
 		VariablePathNode path = null;
 
-		checkConstant();
+		checkConstant(); // Uses legacy identifier constants
 
 		switch ( token.type() ) {
 			case ID:

@@ -35,22 +35,37 @@ public class InputPortInfo extends PortInfo
 	private final OLSyntaxNode protocolConfiguration;
 	private final AggregationItemInfo[] aggregationList;
  	private final Map< String, String > redirectionMap;
+ 	private final VariablePathNode locationPathNode;
 
 	public InputPortInfo(
-		ParsingContext context,
-		String id,
-		URI location,
-		String protocolId,
-		OLSyntaxNode protocolConfiguration,
-		AggregationItemInfo[] aggregationList,
-		Map< String, String > redirectionMap
-	) {
+			ParsingContext context,
+			String id,
+			URI location,
+			String protocolId,
+			OLSyntaxNode protocolConfiguration,
+			AggregationItemInfo[] aggregationList,
+			Map< String, String > redirectionMap )
+	{
+		this( context, id, location, protocolId, protocolConfiguration, aggregationList,
+				redirectionMap, null );
+	}
+
+	public InputPortInfo(
+			ParsingContext context,
+			String id,
+			URI location,
+			String protocolId,
+			OLSyntaxNode protocolConfiguration,
+			AggregationItemInfo[] aggregationList,
+			Map< String, String > redirectionMap,
+			VariablePathNode locationPathNode ) {
 		super( context, id );
 		this.location = location;
 		this.protocolId = protocolId;
 		this.protocolConfiguration = protocolConfiguration;
 		this.aggregationList = aggregationList;
 		this.redirectionMap = redirectionMap;
+		this.locationPathNode = locationPathNode;
 	}
 
 	public AggregationItemInfo[] aggregationList()
@@ -76,6 +91,11 @@ public class InputPortInfo extends PortInfo
 	public URI location()
 	{
 		return location;
+	}
+
+	public VariablePathNode locationPathNode()
+	{
+		return locationPathNode;
 	}
 
 	@Override

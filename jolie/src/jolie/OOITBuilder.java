@@ -189,6 +189,7 @@ public class OOITBuilder implements OLVisitor
 	private final Map< String, InterfaceExtender > interfaceExtenders =
 		new HashMap<>();
 	private final Deque< OLSyntaxNode > lazyVisits = new LinkedList<>();
+	private final Map< String, Value > temporaryConstantValues = new HashMap<>();
 	private boolean firstPass = true;
 	private final String configurationProfile;
 	private final Map<String, Configuration> configurationTree;
@@ -418,7 +419,8 @@ public class OOITBuilder implements OLVisitor
 
 	private URI getLocationForOutputPort( OutputPortInfo n, Configuration configuration )
 	{
-		if ( n.location() == null && n.isExternal() && configuration.hasOutputPortLocation( n.id() ) ) {
+		if ( n.location() == null && n.locationPathNode() == null && n.isExternal() &&
+				configuration.hasOutputPortLocation( n.id() ) ) {
 			ExternalConfigurationProcessor.ProcessedPort outputPort = configuration.getOutputPort( n.id() );
 			if ( outputPort.getEmbedding() != null ) {
 				return null;
@@ -430,6 +432,33 @@ public class OOITBuilder implements OLVisitor
 					throw new IllegalStateException( "Unable to '" + location +
 							"' parse external output port location for " + n.id(), e );
 				}
+			}
+		} else if ( n.locationPathNode() != null ) {
+			// TODO Copy pasted
+			VariablePath variablePath = buildVariablePath( n.locationPathNode() );
+			String rootKey = variablePath.path()[ 0 ].key().evaluate().strValue();
+			if ( !interpreter.isConstant( rootKey ) ) {
+				error( n.locationPathNode().context(), "Identifier passed to the output port's location " +
+						"must be a constant" );
+				return null;
+			}
+			Value rootValue = temporaryConstantValues.get( rootKey );
+			@SuppressWarnings( "unchecked" )
+			Pair< Expression, Expression >[] subPath = new Pair[ variablePath.path().length - 1 ];
+			System.arraycopy( variablePath.path(), 1, subPath, 0, variablePath.path().length - 1 );
+			Value value = new VariablePath( subPath ).getValue( rootValue );
+			if ( !value.isString() ) {
+				error( n.locationPathNode().context(), "Constant used as output port's location must be a " +
+						"string" );
+				return null;
+			}
+
+			try {
+				return new URI( value.strValue() );
+			} catch ( URISyntaxException e ) {
+				error( n.locationPathNode().context(), "Constant used as output port's location is " +
+						"not a valid URI: " + e.getMessage() );
+				return null;
 			}
 		} else {
 			return n.location();
@@ -564,13 +593,40 @@ public class OOITBuilder implements OLVisitor
 
 	private URI getLocationForInputPort( InputPortInfo n, Configuration configuration )
 	{
-		if ( n.location() == null && n.isExternal() && configuration.hasInputPortLocation( n.id() ) ) {
+		if ( n.location() == null && n.locationPathNode() == null && n.isExternal() &&
+				configuration.hasInputPortLocation( n.id() ) ) {
 			String location = configuration.getInputPort( n.id() ).getLocation();
 			try {
 				return new URI( location );
 			} catch ( URISyntaxException e ) {
 				throw new IllegalStateException( "Unable to '" + location +
 						"' parse external output port location for " + n.id(), e );
+			}
+		} else if (n.locationPathNode() != null) {
+			VariablePath variablePath = buildVariablePath( n.locationPathNode() );
+			String rootKey = variablePath.path()[ 0 ].key().evaluate().strValue();
+			if ( !interpreter.isConstant( rootKey ) ) {
+				error( n.locationPathNode().context(), "Identifier passed to the input port's location " +
+						"must be a constant" );
+				return null;
+			}
+			Value rootValue = temporaryConstantValues.get( rootKey );
+			@SuppressWarnings( "unchecked" )
+			Pair< Expression, Expression >[] subPath = new Pair[ variablePath.path().length - 1 ];
+			System.arraycopy( variablePath.path(), 1, subPath, 0, variablePath.path().length - 1 );
+			Value value = new VariablePath( subPath ).getValue( rootValue );
+			if ( !value.isString() ) {
+				error( n.locationPathNode().context(), "Constant used as input port's location must be a " +
+						"string" );
+				return null;
+			}
+
+			try {
+				return new URI( value.strValue() );
+			} catch ( URISyntaxException e ) {
+				error( n.locationPathNode().context(), "Constant used as input port's location is " +
+						"not a valid URI: " + e.getMessage() );
+				return null;
 			}
 		} else {
 			return n.location();
@@ -1794,7 +1850,7 @@ public class OOITBuilder implements OLVisitor
 	@Override
 	public void visit( InternalConstantDefinitionNode n )
 	{
-		Expression value = buildExpression( n.value() );
+		Value value = buildExpression( n.value() ).evaluate();
 		// Setup value initialization
 		List< Process > children = new LinkedList<>();
 		children.add( new DeepCopyProcess( buildVariablePathToConstant( n ), value ) );
@@ -1803,6 +1859,7 @@ public class OOITBuilder implements OLVisitor
 		// Register at interpreter. Will be fully initialized in InitDefinitionProcess
 		Constant extConstant = new Constant( n.name(), process );
 		interpreter.register( n.name(), extConstant );
+		temporaryConstantValues.put( n.name(), value );
 	}
 
 	@Override
@@ -1847,6 +1904,7 @@ public class OOITBuilder implements OLVisitor
 		// Register at interpreter. Will be fully initialized in InitDefinitionProcess
 		Constant extConstant = new Constant( n.name(), process );
 		interpreter.register( n.name(), extConstant );
+		temporaryConstantValues.put( n.name(), constant );
 	}
 
 	private VariablePath buildVariablePathToConstant( ConstantDefinitionNode node )

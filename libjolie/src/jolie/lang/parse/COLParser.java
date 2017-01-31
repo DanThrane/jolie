@@ -322,8 +322,7 @@ public class COLParser extends AbstractParser
 		assertToken( INT, "expected int" );
 		int value = Integer.parseInt( token.content() );
 		ConstantIntegerExpression expr = new ConstantIntegerExpression( getContext(), value );
-		if ( value < 0 )
-		{
+		if ( value < 0 ) {
 			throwException( "integer value was " + value + ", but value cannot be negative here" );
 		}
 		getToken();

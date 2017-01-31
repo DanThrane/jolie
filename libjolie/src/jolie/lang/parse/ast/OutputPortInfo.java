@@ -31,6 +31,7 @@ public class OutputPortInfo extends PortInfo
 	private String protocolId = null;
 	private OLSyntaxNode protocolConfiguration = null;
 	private URI location = null;
+	private VariablePathNode locationPath = null;
 	
 	public OutputPortInfo( ParsingContext context, String id )
 	{
@@ -50,6 +51,11 @@ public class OutputPortInfo extends PortInfo
 	public void setLocation( URI location )
 	{
 		this.location = location;
+	}
+
+	public void setLocationPath( VariablePathNode locationPath )
+	{
+		this.locationPath = locationPath;
 	}
 	
 	@Override
@@ -71,5 +77,10 @@ public class OutputPortInfo extends PortInfo
 	public URI location()
 	{
 		return location;
+	}
+
+	public VariablePathNode locationPathNode()
+	{
+		return locationPath;
 	}
 }
