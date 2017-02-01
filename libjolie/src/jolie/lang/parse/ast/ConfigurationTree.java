@@ -29,7 +29,7 @@ public class ConfigurationTree
 		private String profileName;
 		private String packageName;
 		private final List< ExternalPort > ports = new ArrayList<>();
-		private final List< ExternalConstantConfigNode > constants = new ArrayList<>();
+		private final List< ExternalConstantNode > constants = new ArrayList<>();
 
 		public String getProfileName()
 		{
@@ -56,7 +56,7 @@ public class ConfigurationTree
 			ports.add( port );
 		}
 
-		public void addConstant( ExternalConstantConfigNode constant )
+		public void addConstant( ExternalConstantNode constant )
 		{
 			constants.add( constant );
 		}
@@ -66,7 +66,7 @@ public class ConfigurationTree
 			return Collections.unmodifiableList( ports );
 		}
 
-		public List< ExternalConstantConfigNode > getConstants()
+		public List< ExternalConstantNode > getConstants()
 		{
 			return Collections.unmodifiableList( constants );
 		}
@@ -83,26 +83,17 @@ public class ConfigurationTree
 		}
 	}
 
-	public static class ExternalConstantConfigNode
-	{
+	public static class ExternalConstantNode {
 		private final String name;
-		private final OLSyntaxNode expressionNode;
 
-
-		public ExternalConstantConfigNode( String name, OLSyntaxNode expressionNode )
+		public ExternalConstantNode( String name )
 		{
 			this.name = name;
-			this.expressionNode = expressionNode;
 		}
 
 		public String getName()
 		{
 			return name;
-		}
-
-		public OLSyntaxNode getExpressionNode()
-		{
-			return expressionNode;
 		}
 
 		@Override
@@ -111,28 +102,48 @@ public class ConfigurationTree
 			if ( this == o ) return true;
 			if ( o == null || getClass() != o.getClass() ) return false;
 
-			ExternalConstantConfigNode that = (ExternalConstantConfigNode ) o;
+			ExternalConstantNode that = ( ExternalConstantNode ) o;
 
-			if ( !name.equals( that.name ) ) return false;
-			return expressionNode.equals( that.expressionNode );
-
+			return name != null ? name.equals( that.name ) : that.name == null;
 		}
 
 		@Override
 		public int hashCode()
 		{
-			int result = name.hashCode();
-			result = 31 * result + expressionNode.hashCode();
-			return result;
+			return name != null ? name.hashCode() : 0;
+		}
+	}
+
+	public static class ExternalConstantConfigNode extends ExternalConstantNode
+	{
+		private final OLSyntaxNode expressionNode;
+
+		public ExternalConstantConfigNode( String name, OLSyntaxNode expressionNode )
+		{
+			super( name );
+			this.expressionNode = expressionNode;
 		}
 
-		@Override
-		public String toString()
+		public OLSyntaxNode getExpressionNode()
 		{
-			return "ExternalConstantConfigNode{" +
-					"name='" + name + '\'' +
-					", expressionNode=" + expressionNode +
-					'}';
+			return expressionNode;
+		}
+
+	}
+
+	public static class ExternalConstantRepublished extends ExternalConstantNode
+	{
+		private final String republishedTo;
+
+		public ExternalConstantRepublished( String name, String republishedTo )
+		{
+			super( name );
+			this.republishedTo = republishedTo;
+		}
+
+		public String getRepublishedTo()
+		{
+			return republishedTo;
 		}
 	}
 

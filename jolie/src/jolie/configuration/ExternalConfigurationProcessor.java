@@ -28,10 +28,12 @@ import java.util.stream.Collectors;
 public class ExternalConfigurationProcessor
 {
 	private final ConfigurationTree tree;
+	private final Map< String, Value > predefinedConstants;
 
-	public ExternalConfigurationProcessor( ConfigurationTree tree )
+	public ExternalConfigurationProcessor( ConfigurationTree tree, Map< String, Value > predefinedConstants )
 	{
 		this.tree = tree;
+		this.predefinedConstants = predefinedConstants;
 	}
 
 	public Map< String, Configuration > process()
@@ -59,8 +61,19 @@ public class ExternalConfigurationProcessor
 		} );
 
 		region.getConstants().stream()
+				.filter( it -> it instanceof ConfigurationTree.ExternalConstantConfigNode )
+				.map( it -> ( ConfigurationTree.ExternalConstantConfigNode ) it )
 				.map( this::processConstant )
 				.forEach( it -> constants.put( it.key(), it.value() ) );
+
+		region.getConstants().stream()
+				.filter( it -> it instanceof ConfigurationTree.ExternalConstantRepublished )
+				.map( it -> ( ConfigurationTree.ExternalConstantRepublished ) it )
+				.forEach( it ->
+						constants.put( it.getName(),
+								// Propagate failure until we do type-check of constant
+								predefinedConstants.getOrDefault( it.getRepublishedTo(), Value.create() ) )
+				);
 
 		return new Configuration( region.getProfileName(), region.getPackageName(), inputPorts, outputPorts,
 				constants );
@@ -93,7 +106,7 @@ public class ExternalConfigurationProcessor
 	private Value evaluateNode( OLSyntaxNode node )
 	{
 		if ( node instanceof InlineTreeExpressionNode ) {
-			InlineTreeExpressionNode inlineNode = (InlineTreeExpressionNode) node;
+			InlineTreeExpressionNode inlineNode = ( InlineTreeExpressionNode ) node;
 			Value root = evaluateNode( inlineNode.rootExpression() );
 
 			Pair< VariablePath, Expression >[] assignments = new Pair[ inlineNode.assignments().length ];
@@ -106,15 +119,15 @@ public class ExternalConfigurationProcessor
 			}
 			return new InlineTreeExpression( root, assignments ).evaluate();
 		} else if ( node instanceof ConstantBoolExpression ) {
-			return Value.create( ( (ConstantBoolExpression) node ).value() );
+			return Value.create( ( ( ConstantBoolExpression ) node ).value() );
 		} else if ( node instanceof ConstantDoubleExpression ) {
-			return Value.create( ( (ConstantDoubleExpression) node ).value() );
+			return Value.create( ( ( ConstantDoubleExpression ) node ).value() );
 		} else if ( node instanceof ConstantLongExpression ) {
-			return Value.create( ( (ConstantLongExpression) node ).value() );
+			return Value.create( ( ( ConstantLongExpression ) node ).value() );
 		} else if ( node instanceof ConstantIntegerExpression ) {
-			return Value.create( ( (ConstantIntegerExpression) node ).value() );
+			return Value.create( ( ( ConstantIntegerExpression ) node ).value() );
 		} else if ( node instanceof ConstantStringExpression ) {
-			return Value.create( ( (ConstantStringExpression) node ).value() );
+			return Value.create( ( ( ConstantStringExpression ) node ).value() );
 		} else if ( node instanceof VoidExpressionNode ) {
 			return Value.create();
 		} else {

@@ -72,8 +72,8 @@ public class COLParser extends AbstractParser
 
 	public static void main( String[] args ) throws Exception
 	{
-		File file = new File( args[0] );
-		try (FileInputStream stream = new FileInputStream( file )) {
+		File file = new File( args[ 0 ] );
+		try ( FileInputStream stream = new FileInputStream( file ) ) {
 			COLParser parser = new COLParser( new Scanner( stream, file.toURI(), "US-ASCII" ), file.getParentFile() );
 			parser.parse();
 			System.out.println( parser.configurationTree );
@@ -147,7 +147,7 @@ public class COLParser extends AbstractParser
 		String packageName = token.content();
 		getToken();
 
-		if (profileName == null) profileName = packageName;
+		if ( profileName == null ) profileName = packageName;
 
 		return parseInlineRegion( profileName, packageName );
 	}
@@ -189,17 +189,24 @@ public class COLParser extends AbstractParser
 		}
 	}
 
-	private ConfigurationTree.ExternalConstantConfigNode parseConstantDefinition() throws ParserException, IOException
+	private ConfigurationTree.ExternalConstantNode parseConstantDefinition() throws ParserException, IOException
 	{
 		assertToken( ID, "expected identifier for beginning of constant definition" );
 		String name = token.content();
 		getToken();
 
-		assertToken( ASSIGN, "expected '=' in constant definition" );
-		getToken();
-
-		OLSyntaxNode value = parseConstantValue();
-		return new ConfigurationTree.ExternalConstantConfigNode( name, value );
+		if ( token.is( REPUBLISH ) && allowRepublish ) {
+			getToken();
+			assertToken( ID, "expected identifier when republishing" );
+			String republishedTo = token.content();
+			getToken();
+			return new ConfigurationTree.ExternalConstantRepublished( name, republishedTo );
+		} else {
+			assertToken( ASSIGN, "expected '=' in constant definition" );
+			getToken();
+			OLSyntaxNode value = parseConstantValue();
+			return new ConfigurationTree.ExternalConstantConfigNode( name, value );
+		}
 	}
 
 	void setToken( Scanner.Token token )
@@ -235,7 +242,7 @@ public class COLParser extends AbstractParser
 			String embeds = token.content();
 			getToken();
 			return new ExternalPort( name, type, embeds );
-		} else if (token.type() == LCURLY) {
+		} else if ( token.type() == LCURLY ) {
 			getToken();
 
 			while ( token.type() != RCURLY ) {
@@ -266,7 +273,7 @@ public class COLParser extends AbstractParser
 			getToken();
 
 			return new ExternalPort( name, type, location, new PortProtocol( protocolType, protocolProperties ) );
-		}  else {
+		} else {
 			throwException( "expected port body" );
 			return null;
 		}
@@ -359,7 +366,7 @@ public class COLParser extends AbstractParser
 		eat( Scanner.TokenType.RCURLY, "expected }" );
 
 		return new InlineTreeExpressionNode( rootExpression.context(), rootExpression,
-				assignments.toArray( new Pair[0] ) );
+				assignments.toArray( new Pair[ 0 ] ) );
 	}
 
 	private VariablePathNode parseVariablePath()

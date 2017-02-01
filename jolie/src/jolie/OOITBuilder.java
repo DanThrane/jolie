@@ -510,9 +510,10 @@ public class OOITBuilder implements OLVisitor
 					// Create an implicit inline region to use. TODO Not sure if this is the right place to fix it
 					region = new ConfigurationTree.Region();
 					region.setPackageName( n.servicePath() );
-					region.setProfileName( "inline" );
+					region.setProfileName( Constants.PROFILE_INLINE );
 				}
-				return new EmbeddedServiceLoader.EmbeddedPackageServiceConfiguration( n.servicePath(), region );
+				return new EmbeddedServiceLoader.EmbeddedPackageServiceConfiguration( n.servicePath(), region,
+						temporaryConstantValues );
 			default:
 				return new ExternalEmbeddedServiceConfiguration( n.type(), n.servicePath(), n.context() );
 		}

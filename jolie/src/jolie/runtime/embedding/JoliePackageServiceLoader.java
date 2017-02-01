@@ -5,6 +5,7 @@ import jolie.CommandLineParser;
 import jolie.Interpreter;
 import jolie.configuration.Configuration;
 import jolie.configuration.ExternalConfigurationProcessor;
+import jolie.lang.Constants;
 import jolie.lang.parse.ast.ConfigurationTree;
 import jolie.runtime.expression.Expression;
 
@@ -35,12 +36,13 @@ public class JoliePackageServiceLoader extends EmbeddedServiceLoader
 		// Process region
 		ConfigurationTree tree = new ConfigurationTree();
 		tree.addRegion( configuration.configurationRegion() );
-		ExternalConfigurationProcessor processor = new ExternalConfigurationProcessor( tree );
+		ExternalConfigurationProcessor processor = new ExternalConfigurationProcessor( tree,
+				configuration.constants() );
 		Map< String, Configuration > processedTree = processor.process();
 
 		CommandLineParser cli = currentInterpreter.cmdParser().makeCopy( arguments -> {
 			arguments.setPackageSelf( configuration.configurationRegion().getPackageName() );
-			arguments.setDeploymentProfile( "inline" );
+			arguments.setDeploymentProfile( Constants.PROFILE_INLINE );
 			arguments.setProgramArguments( Collections.emptyList() );
 			arguments.setInternalConfiguration( processedTree );
 		} );

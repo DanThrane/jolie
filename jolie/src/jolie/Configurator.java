@@ -147,7 +147,8 @@ public class Configurator
 						arguments.getCharset() ), configFile.getParentFile() );
 				try {
 					ConfigurationTree parsedTree = parser.parse();
-					ExternalConfigurationProcessor tree = new ExternalConfigurationProcessor( parsedTree );
+					ExternalConfigurationProcessor tree = new ExternalConfigurationProcessor( parsedTree,
+							Collections.emptyMap() );
 					Map< String, Configuration > config = tree.process();
 
 					if ( configFile.getName().equals( DEFAULT_COL ) ) {

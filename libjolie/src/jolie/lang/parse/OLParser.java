@@ -418,7 +418,7 @@ public class OLParser extends AbstractParser
 								type == Constants.EmbeddedServiceType.JOLIE_PACKAGE ) {
 							COLParser colParser = new COLParser( scanner(), null, true );
 							colParser.setToken( token );
-							region = colParser.parseInlineRegion( "inline", servicePath );
+							region = colParser.parseInlineRegion( Constants.PROFILE_INLINE, servicePath );
 							token = colParser.getCurrentToken();
 						}
 

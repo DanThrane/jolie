@@ -118,6 +118,7 @@ public final class Constants
 	public static final String GLOBAL = "global";
 	public static final String CSETS = "csets";
 	public static final String ROOT_RESOURCE_PATH = "/";
+	public static final String PROFILE_INLINE = "inline";
 
 	public enum EmbeddedServiceType
 	{

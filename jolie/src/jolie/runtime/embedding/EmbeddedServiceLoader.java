@@ -31,6 +31,8 @@ import jolie.runtime.Value;
 import jolie.runtime.VariablePath;
 import jolie.runtime.expression.Expression;
 
+import java.util.Map;
+
 public abstract class EmbeddedServiceLoader
 {
 	private final Expression channelDest;
@@ -207,12 +209,15 @@ public abstract class EmbeddedServiceLoader
 	{
 		private final String packageName;
 		private final ConfigurationTree.Region configurationRegion;
+		private final Map< String, Value > constants;
 
-		public EmbeddedPackageServiceConfiguration( String packageName, ConfigurationTree.Region configurationRegion )
+		public EmbeddedPackageServiceConfiguration( String packageName, ConfigurationTree.Region configurationRegion,
+													Map< String, Value > constants )
 		{
 			super( Constants.EmbeddedServiceType.JOLIE_PACKAGE );
 			this.packageName = packageName;
 			this.configurationRegion = configurationRegion;
+			this.constants = constants;
 		}
 
 		public String packageName()
@@ -223,6 +228,11 @@ public abstract class EmbeddedServiceLoader
 		public ConfigurationTree.Region configurationRegion()
 		{
 			return configurationRegion;
+		}
+
+		public Map< String, Value > constants()
+		{
+			return constants;
 		}
 	}
 }

@@ -15,8 +15,8 @@ public class Configuration
 	private final Map< String, ProcessedPort > outputPorts;
 	private final Map< String, Value > constants;
 
-	public Configuration( String profileName, String packageName, Map< String, ProcessedPort > inputPorts, Map< String, ProcessedPort > outputPorts,
-						  Map< String, Value > constants )
+	public Configuration( String profileName, String packageName, Map< String, ProcessedPort > inputPorts,
+						  Map< String, ProcessedPort > outputPorts, Map< String, Value > constants )
 	{
 		this.profileName = profileName;
 		this.packageName = packageName;
