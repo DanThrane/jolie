@@ -197,6 +197,7 @@ public class COLParser extends AbstractParser
 
 		if ( token.is( REPUBLISH ) && allowRepublish ) {
 			getToken();
+			eat( AS, "expected as after republish" );
 			assertToken( ID, "expected identifier when republishing" );
 			String republishedTo = token.content();
 			getToken();

@@ -134,6 +134,7 @@ public class Scanner
 		CONFIGURES,			///< configures
 		EMBEDS,				///< configures
 		REPUBLISH,			///< republish
+		AS,					///< as
 		ERROR				///< Scanner error
 	}
 	
@@ -192,6 +193,7 @@ public class Scanner
 		unreservedKeywords.put( "configures", TokenType.CONFIGURES );
 		unreservedKeywords.put( "embeds", TokenType.EMBEDS );
 		unreservedKeywords.put( "republish", TokenType.REPUBLISH );
+		unreservedKeywords.put( "as", TokenType.AS );
 	}
 	
 	/**
