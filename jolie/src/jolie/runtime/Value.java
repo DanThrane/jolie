@@ -56,22 +56,10 @@ class ValueLink extends Value implements Cloneable
 		out.writeObject( getLinkedValue() );
 	}
 */
-	
+
 	public final Value evaluate()
 	{
 		return getLinkedValue();
-	}
-
-	@Override
-	public void setConstant( boolean constant )
-	{
-		getLinkedValue().setConstant( constant );
-	}
-
-	@Override
-	public boolean isConstant()
-	{
-		return getLinkedValue().isConstant();
 	}
 
 	public boolean hasChildren()
@@ -88,44 +76,44 @@ class ValueLink extends Value implements Cloneable
 	{
 		getLinkedValue()._refCopy( value );
 	}
-	
+
 	public void setValueObject( Object object )
 	{
 		getLinkedValue().setValueObject( object );
 	}
-	
+
 	public void erase()
 	{
 		getLinkedValue().erase();
 	}
-	
+
 	@Override
 	public ValueLink clone()
 	{
 		return new ValueLink( linkPath );
 	}
-	
+
 	public void _deepCopy( Value value, boolean copyLinks )
 	{
 		getLinkedValue()._deepCopy( value, copyLinks );
 	}
-	
+
 	public Map< String, ValueVector > children()
 	{
 		return getLinkedValue().children();
 	}
-		
+
 	public Object valueObject()
 	{
 		return getLinkedValue().valueObject();
-	}	
-	
+	}
+
 	public ValueLink( VariablePath path )
 	{
 		assert( path != null );
 		linkPath = path;
 	}
-	
+
 	public boolean isLink()
 	{
 		return true;
@@ -136,15 +124,13 @@ class ValueImpl extends Value implements Cloneable, Serializable
 {
 	private static final long serialVersionUID = 1L;
 	private boolean constant = false;
-	
+
 	private volatile Object valueObject = null;
 	private final AtomicReference< Map< String, ValueVector > > children = new AtomicReference<>();
-	
+
 	public void setValueObject( Object object )
 	{
-		if ( !isConstant() ) {
-			valueObject = object;
-		}
+		valueObject = object;
 	}
 
 	public ValueVector getChildren( String childId )
@@ -171,34 +157,14 @@ class ValueImpl extends Value implements Cloneable, Serializable
 		return this;
 	}
 
-	@Override
-	public void setConstant( boolean constant )
-	{
-		this.constant = constant;
-		children().forEach( (key, vector) -> vector.forEach( it -> it.setConstant( constant ) ) );
-	}
-
-	@Override
-	public boolean isConstant()
-	{
-		return constant;
-	}
-
 	public void erase()
 	{
-		if ( isConstant() ) {
-			// TODO How do we handle this
-			// TODO How do we handle this
-			// TODO How do we handle this
-			// TODO How do we handle this
-			// TODO How do we handle this
-		}
 		valueObject = null;
 		children.set( null );
 	}
-	
+
 	protected ValueImpl() {}
-	
+
 	public boolean isLink()
 	{
 		return false;
@@ -215,14 +181,13 @@ class ValueImpl extends Value implements Cloneable, Serializable
 		Map< String, ValueVector > c = children.get();
 		return ( c != null && c.containsKey( childId ) );
 	}
-	
+
 	protected void _deepCopy( Value value, boolean copyLinks )
 	{
 		/**
 		 * TODO: check if a << b | b << a can generate deadlocks
 		 */
 		assignValue( value );
-		setConstant(value.isConstant());
 
 		if ( value.hasChildren() ) {
 			int i;
@@ -249,7 +214,7 @@ class ValueImpl extends Value implements Cloneable, Serializable
 			}
 		}
 	}
-	
+
 	private static ValueVector getChildren( String childId, Map< String, ValueVector > children )
 	{
 		return children.computeIfAbsent( childId, k -> ValueVector.create() );
@@ -257,14 +222,14 @@ class ValueImpl extends Value implements Cloneable, Serializable
 
 	private final static int INITIAL_CAPACITY = 8;
 	private final static float LOAD_FACTOR = 0.75f;
-	
+
 	public Map< String, ValueVector > children()
 	{
 		// Create the map if not present
 		children.getAndUpdate( v -> v == null ? new ConcurrentHashMap<> ( INITIAL_CAPACITY, LOAD_FACTOR ) : v );
 		return children.get();
 	}
-	
+
 	public Object valueObject()
 	{
 		return valueObject;
@@ -278,7 +243,7 @@ class ValueImpl extends Value implements Cloneable, Serializable
 	public ValueImpl( Value val )
 	{
 		valueObject = val.valueObject();
-	} 
+	}
 }
 
 /** TODO: remove code duplication from ValueImpl */
@@ -314,18 +279,6 @@ class RootValueImpl extends Value implements Cloneable
 	public final Value evaluate()
 	{
 		return this;
-	}
-
-	@Override
-	public void setConstant( boolean constant )
-	{
-		throw new IllegalStateException( "Cannot mark RootValue as constant" );
-	}
-
-	@Override
-	public boolean isConstant()
-	{
-		return false;
 	}
 
 	public void erase()
@@ -423,7 +376,7 @@ class CSetValue extends ValueImpl
 public abstract class Value implements Expression, Cloneable
 {
 	public abstract boolean isLink();
-	
+
 	public static final Value UNDEFINED_VALUE = Value.create();
 
 	public boolean isUsedInCorrelation()
@@ -435,12 +388,12 @@ public abstract class Value implements Expression, Cloneable
 	{
 		return new RootValueImpl();
 	}
-	
+
 	public final static Value createLink( VariablePath path )
 	{
 		return new ValueLink( path );
 	}
-	
+
 	public final static Value create()
 	{
 		return new ValueImpl();
@@ -450,27 +403,27 @@ public abstract class Value implements Expression, Cloneable
 	{
 		return new CSetValue();
 	}
-	
+
 	public final static Value create( Boolean bool )
 	{
 		return new ValueImpl( bool );
 	}
-	
+
 	public final static Value create( String str )
 	{
 		return new ValueImpl( str );
 	}
-	
+
 	public final static Value create( Integer i )
 	{
 		return new ValueImpl( i );
 	}
-	
+
 	public final static Value create( Long l )
 	{
 		return new ValueImpl( l );
 	}
-	
+
 	public final static Value create( Double d )
 	{
 		return new ValueImpl( d );
@@ -480,28 +433,28 @@ public abstract class Value implements Expression, Cloneable
 	{
 		return new ValueImpl( b );
 	}
-	
+
 	public final static Value create( Value value )
 	{
 		return new ValueImpl( value );
 	}
-	
+
 	public final static Value createClone( Value value )
 	{
 		return value.clone();
 	}
-	
+
 	public final static Value createDeepCopy( Value value )
 	{
 		Value ret = Value.create();
 		ret.deepCopy( value );
 		return ret;
 	}
-	
+
 	/**
 	 * Makes this value an identical copy (by value) of the parameter, considering also its sub-tree.
 	 * In case of a sub-link, its pointed Value tree is copied.
-	 * @param value The value to be copied. 
+	 * @param value The value to be copied.
 	 */
 	public final void deepCopy( Value value )
 	{
@@ -522,31 +475,31 @@ public abstract class Value implements Expression, Cloneable
 	public abstract boolean hasChildren();
 	public abstract boolean hasChildren( String childId );
 	public abstract ValueVector getChildren( String childId );
-	
+
 	@Override
 	public abstract Value clone();
-	
+
 	public final Value getNewChild( String childId )
 	{
 		final ValueVector vec = getChildren( childId );
 		Value retVal = new ValueImpl();
 		vec.add( retVal );
-		
+
 		return retVal;
 	}
-	
+
 	public final Value getFirstChild( String childId )
 	{
 		return getChildren( childId ).get( 0 );
 	}
-	
+
 	public final void setFirstChild( String childId, Object object )
 	{
 		getFirstChild( childId ).setValue( object );
 	}
-	
+
 	public abstract Value evaluate();
-	
+
 	public final void setValue( Object object )
 	{
 		setValueObject( object );
@@ -556,12 +509,12 @@ public abstract class Value implements Expression, Cloneable
 	{
 		setValueObject( object );
 	}
-	
+
 	public final void setValue( Long object )
 	{
 		setValueObject( object );
 	}
-	
+
 	public final void setValue( Boolean object )
 	{
 		setValueObject( object );
@@ -576,10 +529,6 @@ public abstract class Value implements Expression, Cloneable
 	{
 		setValueObject( object );
 	}
-
-	public abstract void setConstant( boolean constant );
-
-	public abstract boolean isConstant();
 
 	public final synchronized boolean equals( Value val )
 	{
@@ -606,52 +555,52 @@ public abstract class Value implements Expression, Cloneable
 		}
 		return r;
 	}
-	
+
 	public final boolean isInt()
 	{
 		return ( valueObject() instanceof Integer );
 	}
-	
+
 	public final boolean isLong()
 	{
 		return ( valueObject() instanceof Long );
 	}
-	
+
 	public final boolean isBool()
 	{
 		return ( valueObject() instanceof Boolean );
 	}
-	
+
 	public final boolean isByteArray()
 	{
 		return ( valueObject() instanceof ByteArray );
 	}
-	
+
 	public final boolean isDouble()
 	{
 		return ( valueObject() instanceof Double );
 	}
-	
+
 	public final boolean isString()
 	{
 		return ( valueObject() instanceof String );
 	}
-	
+
 	public final boolean isChannel()
 	{
 		return ( valueObject() instanceof CommChannel );
 	}
-	
+
 	public final boolean isDefined()
 	{
 		return ( valueObject() != null );
 	}
-	
+
 	public void setValue( CommChannel value )
 	{
 		setValueObject( value );
 	}
-	
+
 	public CommChannel channelValue()
 	{
 		Object o = valueObject();
@@ -660,7 +609,7 @@ public abstract class Value implements Expression, Cloneable
 		}
 		return (CommChannel)o;
 	}
-	
+
 	public String strValue()
 	{
 		try {
@@ -681,7 +630,7 @@ public abstract class Value implements Expression, Cloneable
 		}
 		return o.toString();
 	}
-	
+
 	public ByteArray byteArrayValue()
 	{
 		try {
@@ -741,7 +690,7 @@ public abstract class Value implements Expression, Cloneable
 		}
 		return r;
 	}
-	
+
 	public int intValue()
 	{
 		try {
@@ -750,7 +699,7 @@ public abstract class Value implements Expression, Cloneable
 			return 0;
 		}
 	}
-	
+
 	public final int intValueStrict()
 		throws TypeCastingException
 	{
@@ -781,7 +730,7 @@ public abstract class Value implements Expression, Cloneable
 		}
 		return r;
 	}
-	
+
 	public boolean boolValue()
 	{
 		try {
@@ -790,7 +739,7 @@ public abstract class Value implements Expression, Cloneable
 			return false;
 		}
 	}
-	
+
 	public boolean boolValueStrict()
 		throws TypeCastingException
 	{
@@ -813,10 +762,10 @@ public abstract class Value implements Expression, Cloneable
 				throw new TypeCastingException();
 			}
 		}
-		
+
 		return r;
 	}
-	
+
 	public long longValue()
 	{
 		try {
@@ -825,7 +774,7 @@ public abstract class Value implements Expression, Cloneable
 			return 0L;
 		}
 	}
-	
+
 	public final long longValueStrict()
 		throws TypeCastingException
 	{
@@ -856,7 +805,7 @@ public abstract class Value implements Expression, Cloneable
 		}
 		return r;
 	}
-	
+
 	public double doubleValue()
 	{
 		try {
@@ -865,7 +814,7 @@ public abstract class Value implements Expression, Cloneable
 			return 0.0;
 		}
 	}
-	
+
 	public final double doubleValueStrict()
 		throws TypeCastingException
 	{
@@ -896,7 +845,7 @@ public abstract class Value implements Expression, Cloneable
 		}
 		return r;
 	}
-	
+
 	public final synchronized void add( Value val )
 	{
 		if ( isDefined() ) {
@@ -917,7 +866,7 @@ public abstract class Value implements Expression, Cloneable
 			assignValue( val );
 		}
 	}
-	
+
 	public final synchronized void subtract( Value val )
 	{
 		if ( !isDefined() ) {
@@ -940,7 +889,7 @@ public abstract class Value implements Expression, Cloneable
 			setValue( doubleValue() - val.doubleValue() );
 		}
 	}
-	
+
 	public synchronized final void multiply( Value val )
 	{
 		if ( isDefined() ) {
@@ -957,7 +906,7 @@ public abstract class Value implements Expression, Cloneable
 			assignValue( val );
 		}
 	}
-	
+
 	public synchronized final void divide( Value val )
 	{
 		if ( !isDefined() ) {
@@ -970,7 +919,7 @@ public abstract class Value implements Expression, Cloneable
 			setValue( doubleValue() / val.doubleValue() );
 		}
 	}
-	
+
 	public synchronized final void modulo( Value val )
 	{
 		if ( !isDefined() ) {
@@ -983,12 +932,12 @@ public abstract class Value implements Expression, Cloneable
 			setValue( doubleValue() % val.doubleValue() );
 		}
 	}
-	
+
 	public final void assignValue( Value val )
 	{
 		setValueObject( val.valueObject() );
 	}
-	
+
 	public Expression cloneExpression( TransformationReason reason )
 	{
 		return Value.createClone( this );

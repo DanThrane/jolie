@@ -57,11 +57,6 @@ public class InitDefinitionProcess extends DefinitionProcess
 				}
 			}
 
-			Value root = ExecutionThread.currentThread().state().root();
-			for ( Constant constant : interpreter.constants() ) {
-				root.getFirstChild( constant.name() ).setConstant( true );
-			}
-
 			for( OutputPort outputPort : interpreter.outputPorts() ) {
 				try {
 					outputPort.configurationProcess().run();

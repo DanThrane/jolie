@@ -72,18 +72,6 @@ class ValueVectorLink extends ValueVector implements Cloneable
 	}
 
 	@Override
-	public boolean isConstant()
-	{
-		return getLinkedValueVector().isConstant();
-	}
-
-	@Override
-	public void setConstant( boolean constant )
-	{
-		getLinkedValueVector().setConstant( constant );
-	}
-
-	@Override
 	public int size()
 	{
 		ValueVector vector = linkPath.getValueVectorOrNull();
@@ -149,18 +137,6 @@ class ValueVectorImpl extends ValueVector implements Serializable
 		return (List< Value >)values.clone();
 	}
 
-	@Override
-	public boolean isConstant()
-	{
-		return constant;
-	}
-
-	@Override
-	public void setConstant( boolean constant )
-	{
-		this.constant = constant;
-	}
-
 	public ValueVectorImpl()
 	{
 		values = new ArrayList<>( 1 );
@@ -219,8 +195,6 @@ public abstract class ValueVector implements Iterable< Value >
 	public abstract void set( int i, Value value );
 	public abstract int size();
 	public abstract List< Value > valuesCopy();
-	public abstract boolean isConstant();
-	public abstract void setConstant( boolean constant );
 
 	public synchronized void add( Value value )
 	{

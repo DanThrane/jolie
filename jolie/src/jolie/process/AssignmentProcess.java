@@ -75,25 +75,14 @@ public class AssignmentProcess implements Process, Expression
 		if ( thread == null || thread.isKilled() ) {
 			return;
 		}
-		// TODO How do we handle this?
-		// TODO How do we handle this?
-		// TODO How do we handle this?
-		// Throwing a fault seems to be the wrong thing, but it appears that all other exceptions will be ignored
 		Value value = varPath.getValue();
-		if ( !value.isConstant() ) {
-			value.assignValue( expression.evaluate() );
-		}
+		value.assignValue( expression.evaluate() );
 	}
 
 	public Value evaluate()
 	{
 		Value val = varPath.getValue();
-		if ( !val.isConstant() ) {
-			// TODO How do we handle this?
-			// TODO How do we handle this?
-			// TODO How do we handle this?
-			val.assignValue( expression.evaluate() );
-		}
+		val.assignValue( expression.evaluate() );
 		return val;
 	}
 
