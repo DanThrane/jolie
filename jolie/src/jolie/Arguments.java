@@ -94,10 +94,15 @@ public class Arguments
 		i++;
 
 		// Now parse the command line programArguments for the Jolie program
-		for ( ; i < argsList.size() && programFilePath != null; i++ ) {
+		for ( ; i < argsList.size() && hasProgram(); i++ ) {
 			programArgumentsList.add( argsList.get( i ) );
 		}
 		programArguments.addAll( programArgumentsList );
+	}
+
+	private boolean hasProgram()
+	{
+		return programFilePath != null || packageSelf != null || (deploymentFile != null && deploymentProfile != null);
 	}
 
 	public int addOptions( int i, List< String > args ) throws CommandLineException
@@ -106,7 +111,7 @@ public class Arguments
 
 		// First parse Jolie programArguments with the Jolie program argument
 		for ( ; i < args.size(); i++ ) {
-			if ( "--help".equals( args.get( i ) ) || "-h".equals( args.get( i ) ) ) {
+ 			if ( "--help".equals( args.get( i ) ) || "-h".equals( args.get( i ) ) ) {
 				throw new CommandLineException( cli.getHelpString() );
 			} else if ( "-C".equals( args.get( i ) ) ) {
 				optionsList.add( args.get( i ) );

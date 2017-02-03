@@ -44,6 +44,12 @@ public class Configuration
 		mergePorts( inputPorts, defaultUnit.inputPorts );
 		mergePorts( outputPorts, defaultUnit.outputPorts );
 
+		defaultUnit.constants.forEach( (key, value) -> {
+			if ( !constants.containsKey( key ) ) {
+				constants.put( key, value );
+			}
+		} );
+
 		return new Configuration( profileName, packageName, inputPorts, outputPorts, constants );
 	}
 
