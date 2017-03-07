@@ -42,21 +42,26 @@ public class JolieServiceLoader extends EmbeddedServiceLoader
 			throws IOException, CommandLineException
 	{
 		super( channelDest );
-		final ArrayList< String > serviceOptions = new ArrayList<>( Arrays.asList( servicePathSplitPattern.split( servicePath ) ) );
-		final ArrayList< String > options = new ArrayList<>( Arrays.asList( currInterpreter.optionArgs() ) );
-		List< String > newArgs = new ArrayList<>();
 
-		newArgs.add( "-i" );
-		newArgs.add( currInterpreter.programDirectory().getAbsolutePath() );
-
-		newArgs.addAll( options );
-		newArgs.addAll( serviceOptions );
-
-		interpreter = new Interpreter(
-				newArgs.toArray( new String[0] ),
-				currInterpreter.getClassLoader(),
-				currInterpreter.programDirectory()
+		final ArrayList< String > serviceOptions = new ArrayList<>(
+				Arrays.asList( servicePathSplitPattern.split( servicePath ) )
 		);
+
+		// We need to remove deployment such that we can pass a normal file here.
+		CommandLineParser newArguments = currInterpreter.cmdParser().makeCopy( it -> {
+			it.setDeploymentFile( null );
+			it.setDeploymentProfile( null );
+			it.setInternalConfiguration( null );
+			it.setPackageSelf( null );
+			it.getIncludeList().add( currInterpreter.programDirectory().getAbsolutePath() );
+			try {
+				it.addOptions( 0, serviceOptions );
+			} catch ( CommandLineException e ) {
+				throw new RuntimeException( e );
+			}
+		} );
+		// TODO Program directory probably isn't right.
+		interpreter = new Interpreter( newArguments, currInterpreter.programDirectory() );
 	}
 
 	public JolieServiceLoader( Expression channelDest, CommandLineParser cli ) throws IOException
@@ -65,7 +70,7 @@ public class JolieServiceLoader extends EmbeddedServiceLoader
 		interpreter = new Interpreter( cli, null );
 	}
 
-	public void load ()
+	public void load()
 			throws EmbeddedServiceLoadingException
 	{
 		Future< Exception > f = interpreter.start();
@@ -81,7 +86,7 @@ public class JolieServiceLoader extends EmbeddedServiceLoader
 		}
 	}
 
-	public Interpreter interpreter ()
+	public Interpreter interpreter()
 	{
 		return interpreter;
 	}

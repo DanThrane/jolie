@@ -87,7 +87,6 @@ public class OLParser extends AbstractParser
 	private final Set< URI > includedFiles = new HashSet<>();
 	private final ClassLoader classLoader;
 	private final String packageLocation;
-	private DefinitionNode constants = null;
 
 	private InterfaceExtenderDefinition currInterfaceExtender = null;
 

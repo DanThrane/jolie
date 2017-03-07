@@ -1892,6 +1892,13 @@ public class OOITBuilder implements OLVisitor
 		n.typeDefinition().accept( this );
 		Type type = types.get( n.typeDefinition().id() );
 		try {
+			// TODO HACK Pretend that undefined is a native type
+			// TODO Need to move type checking of constants until after type links have been resolved
+			if ( type instanceof Type.TypeLink ) {
+				if ( ( ( Type.TypeLink ) type ).linkedTypeName().equals( "undefined" ) ) {
+					( ( Type.TypeLink ) type ).setLinkedType( Type.UNDEFINED );
+				}
+			}
 			type.check( constant );
 		} catch ( TypeCheckingException e ) {
 			error( n.typeDefinition().context(),

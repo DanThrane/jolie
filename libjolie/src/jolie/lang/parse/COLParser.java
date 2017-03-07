@@ -72,9 +72,12 @@ public class COLParser extends AbstractParser
 
 	public static void main( String[] args ) throws Exception
 	{
-		File file = new File( args[ 0 ] );
+		if (args.length == 0) System.out.print("Enter file name: ");
+		String fileName = args.length >= 1 ? args[ 0 ] : new java.util.Scanner(System.in).nextLine();
+		File file = new File( fileName );
 		try ( FileInputStream stream = new FileInputStream( file ) ) {
-			COLParser parser = new COLParser( new Scanner( stream, file.toURI(), "US-ASCII" ), file.getParentFile() );
+			COLParser parser = new COLParser( new Scanner( stream, file.toURI(), "US-ASCII" ),
+					file.getParentFile() );
 			parser.parse();
 			System.out.println( parser.configurationTree );
 		}
@@ -373,9 +376,22 @@ public class COLParser extends AbstractParser
 	private VariablePathNode parseVariablePath()
 			throws ParserException, IOException
 	{
-		assertToken( Scanner.TokenType.ID, "Expected variable path" );
-		String varId = token.content();
-		getToken();
+		String varId;
+
+		if ( token.is( Scanner.TokenType.ID) )  {
+			varId = token.content();
+			getToken();
+		} else if ( token.is( Scanner.TokenType.LPAREN ) ) {
+			getToken();
+			assertToken( Scanner.TokenType.STRING, "Expected string" );
+			varId = token.content();
+			getToken();
+			eat( Scanner.TokenType.RPAREN, "Expected ')'" );
+		} else {
+			throwException( "Expected variable path" );
+			return null;
+		}
+
 		return parseVariablePathFromRootIdentifier( varId );
 	}
 
@@ -391,15 +407,20 @@ public class COLParser extends AbstractParser
 		OLSyntaxNode nodeExpr = null;
 		while ( token.is( Scanner.TokenType.DOT ) ) {
 			getToken();
-			if ( token.isIdentifier() ) {
+			if ( token.is( Scanner.TokenType.LPAREN ) ) {
+				getToken();
+				assertToken( Scanner.TokenType.STRING, "Expected string in variable path" );
 				nodeExpr = new ConstantStringExpression( getContext(), token.content() );
+				getToken();
+				eat( Scanner.TokenType.RPAREN, "Expected ')'" );
+			} else if ( token.isIdentifier() ) {
+				nodeExpr = new ConstantStringExpression( getContext(), token.content() );
+				getToken();
 			} else {
 				throwException( "expected nested node identifier" );
 			}
 
-			getToken();
 			temporaryExpression = parseVariablePathIndexing();
-
 			path.append( new Pair<>( nodeExpr, temporaryExpression ) );
 		}
 		return path;
