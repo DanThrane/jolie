@@ -21,7 +21,6 @@
 
 package jolie;
 
-import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.Closeable;
 import java.io.File;
@@ -33,23 +32,19 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 import java.util.logging.Level;
 import java.util.regex.Pattern;
-import jolie.jap.JapURLConnection;
+import java.util.stream.Collectors;
+
 import jolie.lang.Constants;
 import jolie.lang.parse.Scanner;
 import jolie.runtime.correlation.CorrelationEngine;
 import jolie.util.Helpers;
+import jolie.util.Pair;
 
 /**
  * A parser for JOLIE's command line arguments,
@@ -69,9 +64,9 @@ public class CommandLineParser implements Closeable
 	private final URL[] libURLs;
 	private final InputStream programStream;
 	private String charset = null;
-	private final File programFilepath;
+	private final URI programFilepath;
 	private final String[] arguments;
-	private final Map< String, Scanner.Token > constants = new HashMap< String, Scanner.Token >();
+	private final Map< String, Scanner.Token > constants = new HashMap<>();
 	private final JolieClassLoader jolieClassLoader;
 	private final boolean isProgramCompiled;
 	private final boolean typeCheck;
@@ -79,7 +74,26 @@ public class CommandLineParser implements Closeable
         private final boolean check;
 	private final Level logLevel;
 	private File programDirectory = null;
-	
+	private final Map< String, JoliePackage > knownPackages = new HashMap<>();
+	private String configurationProfile = null;
+	private String configurationFile = null;
+	private String thisPackage = null;
+
+	public String configurationProfile()
+	{
+		return configurationProfile;
+	}
+
+	public String configurationFile()
+	{
+		return configurationFile;
+	}
+
+	public String thisPackage()
+	{
+		return thisPackage;
+	}
+
 	/**
 	 * Returns the arguments passed to the JOLIE program.
 	 * @return the arguments passed to the JOLIE program.
@@ -111,7 +125,7 @@ public class CommandLineParser implements Closeable
 		return tracer;
 	}
         
-        	/**
+	/**
 	 * Returns
 	 * <code>true</code> if the check option has been specified, false
 	 * otherwise.
@@ -138,6 +152,12 @@ public class CommandLineParser implements Closeable
 	 * @return the file path of the JOLIE program to execute
 	 */
 	public File programFilepath()
+	{
+		// Legacy API. This should always have been a URI, not a File
+		return new File( programFilepath.toString() );
+	}
+
+	public URI programPath()
 	{
 		return programFilepath;
 	}
@@ -290,16 +310,6 @@ public class CommandLineParser implements Closeable
 	}
 
 	/**
-	 * Returns <code>true</code> if the verbose option has been specified, false otherwise.
-	 * @return <code>true</code> if the verbose option has been specified, false otherwise
-	 */
-/*	public boolean verbose()
-	{
-		return verbose;
-	}
-*/
-	
-	/**
 	 * Returns the type of correlation algorithm that has been specified.
 	 * @return the type of correlation algorithm that has been specified.
 	 * @see CorrelationEngine
@@ -372,16 +382,21 @@ public class CommandLineParser implements Closeable
 		boolean bTypeCheck = false; // Default for typecheck
 		Level lLogLevel = Level.INFO;
 		List< String > programArgumentsList = new ArrayList<>();
-		LinkedList< String > includeList = new LinkedList<>();
+		LinkedList< File > includeList = new LinkedList<>();
 		List< String > libList = new ArrayList<>();
 		int cLimit = -1;
 		int cCache = 100;
+
+		// TODO Needs to be removed
+		/*
 		String pwd = new File( "" ).getCanonicalPath();
 		includeList.add( pwd );
 		includeList.add( "include" );
 		libList.add( pwd );
 		libList.add( "ext" );
 		libList.add( "lib" );
+		*/
+
 		String olFilepath = null;
 		String japUrl = null;
 		int i = 0;
@@ -405,7 +420,7 @@ public class CommandLineParser implements Closeable
 					argsList.set( i, argsList.get( i ).replace( "$JAP$", japUrl ) );
 				}
 				String[] tmp = PATH_SEPARATOR_PATTERN.split( argsList.get( i ) );
-				Collections.addAll( includeList, tmp );
+				includeList.addAll( Arrays.stream( tmp ).map( File::new ).collect( Collectors.toList() ) );
 				optionsList.add( argsList.get( i ) );
 			} else if ( "-l".equals( argsList.get( i ) ) ) {
 				optionsList.add( argsList.get( i ) );
@@ -502,6 +517,62 @@ public class CommandLineParser implements Closeable
 				} else {
 					programArgumentsList.add( argsList.get( i ) );
 				}
+			} else if ( argsList.get( i ).endsWith( ".pkg" ) ) {
+				if ( olFilepath == null ) {
+					String argument = argsList.get( i );
+					argument = argument.substring( 0, argument.length() - 4 );
+
+					JoliePackage pack = knownPackages.get( argument );
+					if ( pack == null ) {
+						throw new CommandLineException( "Attempting to start program from package, was given " +
+								"package: '" + argument + "', but it could not be found.\n" +
+								"  Did you forget to configure it with --pkg?\n" +
+								"  The following packages are known: " + knownPackages.keySet().toString() );
+					}
+
+					thisPackage = pack.getName();
+					programDirectory = new File( pack.getRoot() );
+					olFilepath = new File( programDirectory, pack.getEntryPoint() ).getAbsolutePath();
+				} else {
+					programArgumentsList.add( argsList.get( i ) );
+				}
+			} else if ( argsList.get( i ).equals( "--pkg" ) ) {
+				// Validate input
+				if ( argsList.size() <= i + 1 ) {
+					throw new CommandLineException( "Expected package description after --pkg. " +
+							"Usage: --pkg <name>,<root>[,<entrypoint>]" );
+				}
+
+				String pkgArgs[] = argsList.get( i + 1 ).split( "," );
+				if ( pkgArgs.length != 2 && pkgArgs.length != 3 ) {
+					throw new CommandLineException( "Invalid package description. " +
+							"Usage: --pkg <name>,<root>[,<entrypoint>]" );
+				}
+
+				// Copy to options
+				optionsList.add( argsList.get( i ) );
+				optionsList.add( argsList.get( i + 1 ) );
+
+				// Save knowledge of package
+				String name = pkgArgs[0];
+				String root = pkgArgs[1];
+				String entryPoint = pkgArgs.length == 3 ? pkgArgs[2] : null;
+
+				JoliePackage pack = new JoliePackage( name, root, entryPoint );
+				knownPackages.put( name, pack );
+
+				// Increment index past sub-arguments
+				i += 1;
+			} else if ( argsList.get( i ).equals( "--conf" ) ) {
+				if ( argsList.size() <= i + 2 ) {
+					throw new CommandLineException( "Expected configuration after --conf. " +
+							"Usage: --conf <profile> <file>" );
+				}
+
+				i++;
+				configurationProfile = argsList.get( i );
+				i++;
+				configurationFile = argsList.get( i );
 			} else {
 				// It's an unrecognized argument
 				int newIndex = argHandler.onUnrecognizedArgument( argsList, i );
@@ -527,16 +598,16 @@ public class CommandLineParser implements Closeable
 		}
 		optionArgs = optionsList.toArray( new String[ optionsList.size() ] );
 		arguments = programArgumentsList.toArray( new String[ programArgumentsList.size() ] );
-		// whitepages = whitepageList.toArray( new String[ whitepageList.size() ] );
-		
+
 		if ( olFilepath == null && !ignoreFile) {
 			throw new CommandLineException( "Input file not specified." );
 		}
 	
 		connectionsLimit = cLimit;
 		connectionsCache = cCache;
-        
-		List< URL > urls = new ArrayList<>();
+
+		// Load Java libraries
+		Set< URL > urls = new HashSet<>();
 		for( String path : libList ) {
 			if ( path.contains( "!/" ) && !path.startsWith( "jap:" ) && !path.startsWith( "jar:" ) ) {
 				path = "jap:file:" + path;
@@ -560,17 +631,48 @@ public class CommandLineParser implements Closeable
 			} else {
 				try {
 					urls.add( new URL( path ) );
-				} catch( MalformedURLException e ) {
-//					e.printStackTrace();
-				}
+				} catch( MalformedURLException ignored ) { }
 			}
 		}
 		urls.add( new URL( "file:/" ) );
+
+		// Load Java libraries from known packages
+		for ( JoliePackage pack : knownPackages.values() ) {
+			File libDirectory = new File( pack.getRoot(), "lib" );
+			if ( libDirectory.exists() ) {
+				extractAndAddJarUrlsFromDirectory( urls, libDirectory );
+			}
+		}
+
 		libURLs = urls.toArray( new URL[]{} );
 		jolieClassLoader = new JolieClassLoader( libURLs, parentClassLoader );
-		
-		GetOLStreamResult olResult = getOLStream( olFilepath, includeList, jolieClassLoader );
 
+		// Configure the final pieces of the include path
+		if ( programDirectory != null ) {
+			includeList.addFirst( programDirectory );
+			includeList.addFirst( new File( programDirectory, "include" ) );
+		} else {
+			includeList.addFirst( new File( new File( "" ).getCanonicalPath() ) );
+			includeList.addFirst( new File( "include" ) );
+		}
+
+		// Open file stream
+		Pair< URI, InputStream > openProgram = openProgram( includeList, olFilepath );
+		if ( openProgram == null ) {
+			if ( ignoreFile ) {
+				openProgram = new Pair<>( new File( olFilepath ).toURI(), new ByteArrayInputStream( new byte[]{} ) );
+			} else {
+				throw new FileNotFoundException( olFilepath );
+			}
+		}
+		isProgramCompiled = openProgram.key().toString().endsWith( ".olc" );
+		tracer = bTracer && !isProgramCompiled;
+		check = bCheck && !isProgramCompiled;
+		programFilepath = openProgram.key();
+		programStream = openProgram.value();
+
+		/*
+		GetOLStreamResult olResult = getOLStream( olFilepath, includeList, jolieClassLoader );
 		if ( olResult.stream == null ) {
             if ( ignoreFile ) {
                 olResult.source = olFilepath;
@@ -592,30 +694,23 @@ public class CommandLineParser implements Closeable
 		check = bCheck && !isProgramCompiled;
 		programFilepath = new File( olResult.source );
 		programStream = olResult.stream;
+		*/
 
-		includePaths = includeList.toArray( new String[]{} );
+		includePaths = includeList.stream()
+				.map( File::getAbsolutePath )
+				.collect( Collectors.toList() )
+				.toArray( new String[0] );
 	}
-	
-	
-	
-	/**
-	 * Adds the standard include and library subdirectories of the program to
-	 * the classloader paths.
-	 */
-	/* private void addProgramDirectories( List< String > includeList, List< String > libList, String olFilepath )
+
+	private void extractAndAddJarUrlsFromDirectory( Set< URL > urls, File dir ) throws IOException
 	{
-		File olFile = new File( olFilepath );
-		if ( olFile.exists() ) {
-			File parent = olFile.getParentFile();
-			if ( parent != null && parent.isDirectory() ) {
-				String parentPath = parent.getAbsolutePath();
-				includeList.add( parentPath );
-				includeList.add( parentPath + "/include" );
-				libList.add( parentPath );
-				libList.add( parentPath + "/lib" );
+		String jars[] = dir.list( ( File directory, String filename ) -> filename.endsWith( ".jar" ) );
+		if ( jars != null ) {
+			for ( String jarPath : jars ) {
+				urls.add( new URL( "jar:file:" + dir.getCanonicalPath() + '/' + jarPath + "!/" ) );
 			}
 		}
-	} */
+	}
 
 	/**
 	 * Returns the directory in which the main program is located.
@@ -703,7 +798,8 @@ public class CommandLineParser implements Closeable
 		}
 		return optionList;
 	}
-	
+
+	/*
 	private static class GetOLStreamResult {
 		private String source;
 		private InputStream stream;
@@ -772,6 +868,96 @@ public class CommandLineParser implements Closeable
 		}
 		return result;
 	}
+	*/
+
+	public Pair< URI, InputStream > openProgram( LinkedList< File > includePaths, String fileName ) throws IOException
+	{
+		Pair< File, InputStream > programAsFile = locateProgramAsFile( includePaths, fileName );
+		if ( programAsFile == null && fileName.endsWith( ".ol" ) ) {
+			// Try to use .olc instead
+			programAsFile = locateProgramAsFile( includePaths, fileName + "c" );
+		}
+		if ( programAsFile != null ) {
+			File parentFile = programAsFile.key().getParentFile();
+			if ( parentFile != null ) {
+				includePaths.addFirst( parentFile );
+			}
+			return new Pair<>( programAsFile.key().toURI(), programAsFile.value() );
+		}
+
+		Pair< URL, InputStream > urlStream;
+		urlStream = locateProgramAsURL( fileName );
+		if ( urlStream == null ) urlStream = locateProgramFromClassLoader( fileName );
+
+		if ( urlStream != null ) {
+			// We previously added the "parent" to the include paths
+			// However this doesn't make sense. The include paths were only used to construct File instances,
+			// which don't understand URIs in the first place.
+			try {
+				return new Pair<>( urlStream.key().toURI(), urlStream.value() );
+			} catch ( URISyntaxException e ) {
+				throw new RuntimeException( e );
+			}
+		}
+
+		throw new IllegalStateException( "Could not locate program." );
+	}
+
+	private Pair< File, InputStream > locateProgramAsFile( LinkedList< File > includePaths, String fileName )
+	{
+		for ( File path : includePaths ) {
+			File file = new File( path, fileName );
+			if ( file.exists() ) {
+				programDirectory = file.getParentFile();
+				return openFileStream( file );
+			}
+		}
+
+		// Previously we would look for the file without any include path as the first thing, we now postpone this.
+		// This is to ensure that relative file paths don't start by checking the working directory. This will cause
+		// conflicts if we're starting for example a package.
+		File file = new File( fileName );
+		if ( file.exists() ) {
+			return openFileStream( file );
+		}
+
+		return null;
+	}
+
+	private Pair< File, InputStream > openFileStream( File file )
+	{
+		try {
+			return new Pair<>( file, new FileInputStream( file ) );
+		} catch ( FileNotFoundException e ) {
+			throw new RuntimeException( "File no longer present.", e );
+		}
+	}
+
+	private Pair< URL, InputStream > locateProgramAsURL( String fileName ) throws IOException
+	{
+		try {
+			URL url = new URL( fileName );
+			InputStream inputStream = url.openStream();
+			if ( inputStream != null ) {
+				return new Pair<>( url, inputStream );
+			}
+		} catch ( MalformedURLException ignored ) {
+		}
+		return null;
+	}
+
+	private Pair< URL, InputStream > locateProgramFromClassLoader( String fileName ) throws IOException
+	{
+		URL resource = jolieClassLoader.getResource( fileName );
+		if ( resource != null ) {
+			InputStream inputStream = resource.openStream();
+			if ( inputStream != null ) {
+				return new Pair<>( resource, inputStream );
+			}
+		}
+		return null;
+	}
+
 
 	/**
 	 * A handler for unrecognized arguments, meant to be implemented
@@ -794,12 +980,8 @@ public class CommandLineParser implements Closeable
 		 * Default {@link ArgumentHandler}. It just throws a {@link CommandLineException} when it finds an unrecognised option.
 		 */
 		public static ArgumentHandler DEFAULT_ARGUMENT_HANDLER =
-			new ArgumentHandler() {
-				public int onUnrecognizedArgument( List< String > argumentsList, int index )
-					throws CommandLineException
-				{
+				( argumentsList, index ) -> {
 					throw new CommandLineException( "Unrecognized command line option: " + argumentsList.get( index ) );
-				}
-			};
+				};
 	}
 }
