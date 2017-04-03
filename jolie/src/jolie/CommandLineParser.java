@@ -41,6 +41,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import jolie.lang.Constants;
+import jolie.lang.JoliePackage;
 import jolie.lang.parse.Scanner;
 import jolie.runtime.correlation.CorrelationEngine;
 import jolie.util.Helpers;
@@ -78,6 +79,11 @@ public class CommandLineParser implements Closeable
 	private String configurationProfile = null;
 	private String configurationFile = null;
 	private String thisPackage = null;
+
+	public Map< String, JoliePackage > knownPackages()
+	{
+		return knownPackages;
+	}
 
 	public String configurationProfile()
 	{

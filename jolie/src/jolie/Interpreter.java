@@ -1235,6 +1235,7 @@ public class Interpreter
 					), includePaths, classLoader );
 
 					olParser.putConstants( cmdParser.definedConstants() );
+					olParser.putKnownPackages( cmdParser.knownPackages() );
 					program = olParser.parse();
 				}
 				program = OLParseTreeOptimizer.optimize( program );

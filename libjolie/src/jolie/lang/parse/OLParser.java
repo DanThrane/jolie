@@ -19,10 +19,7 @@
 
 package jolie.lang.parse;
 
-import java.io.BufferedInputStream;
-import java.io.EOFException;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -30,14 +27,10 @@ import java.net.URL;
 import java.nio.file.FileSystemNotFoundException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+
 import jolie.lang.Constants;
+import jolie.lang.JoliePackage;
 import jolie.lang.NativeType;
 import jolie.lang.parse.ast.AddAssignStatement;
 import jolie.lang.parse.ast.AssignStatement;
@@ -137,14 +130,12 @@ import jolie.util.Range;
 public class OLParser extends AbstractParser
 {
 	private final Program program;
-	private final Map< String, Scanner.Token > constantsMap =
-		new HashMap<>();
+	private final Map< String, Scanner.Token > constantsMap = new HashMap<>();
 	private boolean insideInstallFunction = false;
 	private String[] includePaths;
-	private final Map< String, InterfaceDefinition > interfaces =
-		new HashMap<>();
-	private final Map< String, InterfaceExtenderDefinition > interfaceExtenders =
-		new HashMap<>();
+	private final Map< String, InterfaceDefinition > interfaces = new HashMap<>();
+	private final Map< String, InterfaceExtenderDefinition > interfaceExtenders = new HashMap<>();
+	private final Map< String, JoliePackage > knownPackages = new HashMap<>(  );
 
 	private final Map< String, TypeDefinition > definedTypes;
 	private final ClassLoader classLoader;
@@ -159,6 +150,11 @@ public class OLParser extends AbstractParser
 		this.includePaths = includePaths;
 		this.classLoader = classLoader;
 		this.definedTypes = createTypeDeclarationMap( context );
+	}
+
+	public void putKnownPackages( Map< String, JoliePackage > knownPackages )
+	{
+		this.knownPackages.putAll( knownPackages );
 	}
 
 	public void putConstants( Map< String, Scanner.Token > constantsToPut )
@@ -678,31 +674,41 @@ public class OLParser extends AbstractParser
 			Scanner oldScanner = scanner();
 			assertToken( Scanner.TokenType.STRING, "expected filename to include" );
 			String includeStr = token.content();
-			includeFile = null;
+			getToken();
 
-			// Try the same directory of the program file first.
-			/* if ( includePaths.length > 1 ) {
-				includeFile = retrieveIncludeFile( includePaths[0], includeStr );
-			} */
-
-			/* if ( includeFile == null ) {
-				URL includeURL = classLoader.getResource( includeStr );
-				if ( includeURL != null ) {
-					File f = new File( includeURL.toString() );
-					includeFile = new IncludeFile( includeURL.openStream(), f.getParent(), f.toURI() );
+			if ( token.is( Scanner.TokenType.FROM ) ) {
+				getToken();
+				assertToken( Scanner.TokenType.STRING, "expected package to include from" );
+				String packageName = token.content();
+				JoliePackage joliePackage = knownPackages.get( packageName );
+				if ( joliePackage == null ) {
+					throwException( "Error in package include. Package '" + packageName + "' was not found!\n" +
+							"  Did you forget to configure it using --pkg?\n" +
+							"  I know the following packages: " + knownPackages.values().toString() );
 				}
-			} */
+				includeFile = findPackageInclude( joliePackage, includeStr );
+				getToken();
+			} else {
+				includeFile = null;
 
-			for ( int i = 0; i < includePaths.length && includeFile == null; i++ ) {
-				includeFile = retrieveIncludeFile( includePaths[i], includeStr );
-			}
-			
-			if ( includeFile == null ) {
-				includeFile = tryAccessIncludeFile( includeStr );
+				if ( oldScanner.source().getScheme().equals( "file" ) ) {
+					includeFile = retrieveIncludeFile( new File( oldScanner.source() ).getParent(), includeStr );
+				}
+
+				for ( int i = 0; i < includePaths.length && includeFile == null; i++ ) {
+					includeFile = retrieveIncludeFile( includePaths[ i ], includeStr );
+				}
+
 				if ( includeFile == null ) {
-					throwException( "File not found: " + includeStr );
+					includeFile = tryAccessIncludeFile( includeStr );
+					if ( includeFile == null ) {
+						throwException( "File not found: " + includeStr );
+					}
 				}
 			}
+			// When we switch scanner the old next token is erased. We will have to save it here, such that we can
+			// continue at the correct token.
+			Scanner.Token nextToken = token;
 
 			origIncludePaths = includePaths;
 			// includes are explicitly parsed in ASCII to be independent of program's encoding
@@ -718,8 +724,35 @@ public class OLParser extends AbstractParser
 			includePaths = origIncludePaths;
 			includeFile.getInputStream().close();
 			setScanner( oldScanner );
-			getToken();
+			token = nextToken;
 		}
+	}
+
+	private IncludeFile findPackageInclude( JoliePackage joliePackage, String includeString )
+			throws ParserException, FileNotFoundException
+	{
+		Objects.requireNonNull( joliePackage );
+		Objects.requireNonNull( includeString );
+
+		File packageDirectory = new File( joliePackage.getRoot() );
+
+		if ( !packageDirectory.exists() ) {
+			throwException( "Package " + joliePackage.getName() + " does not exist! [Expected " +
+					packageDirectory.getAbsolutePath() + " to exist, it does not]" );
+		}
+
+		File includeDirectory = new File( packageDirectory, "include" );
+		List< File > includePaths = Arrays.asList( packageDirectory, includeDirectory );
+
+		for ( File directory : includePaths ) {
+			File file = new File( directory, includeString );
+			if ( file.exists() ) {
+				return new IncludeFile( new FileInputStream( file ), directory.getAbsolutePath(), file.toURI() );
+			}
+		}
+
+		throwException( "Could not find '" + includeString + "' in package '" + joliePackage.getName() + "'" );
+		return null;
 	}
 
 	private boolean checkConstant()
