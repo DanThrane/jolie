@@ -387,16 +387,6 @@ public class CommandLineParser implements Closeable
 		int cLimit = -1;
 		int cCache = 100;
 
-		// TODO Needs to be removed
-		/*
-		String pwd = new File( "" ).getCanonicalPath();
-		includeList.add( pwd );
-		includeList.add( "include" );
-		libList.add( pwd );
-		libList.add( "ext" );
-		libList.add( "lib" );
-		*/
-
 		String olFilepath = null;
 		String japUrl = null;
 		int i = 0;
@@ -671,31 +661,6 @@ public class CommandLineParser implements Closeable
 		programFilepath = openProgram.key();
 		programStream = openProgram.value();
 
-		/*
-		GetOLStreamResult olResult = getOLStream( olFilepath, includeList, jolieClassLoader );
-		if ( olResult.stream == null ) {
-            if ( ignoreFile ) {
-                olResult.source = olFilepath;
-                olResult.stream = new ByteArrayInputStream( new byte[]{} );
-            } else if ( olFilepath.endsWith( ".ol" ) ) {
-				// try to read the compiled version of the ol file
-				olFilepath += "c";
-				olResult = getOLStream( olFilepath, includeList, jolieClassLoader );
-				if ( olResult.stream == null ) {
-					throw new FileNotFoundException( olFilepath );
-				}
-			} else {
-				throw new FileNotFoundException( olFilepath );
-			}
-		}
-
-		isProgramCompiled = olFilepath.endsWith( ".olc" );
-		tracer = bTracer && !isProgramCompiled;
-		check = bCheck && !isProgramCompiled;
-		programFilepath = new File( olResult.source );
-		programStream = olResult.stream;
-		*/
-
 		includePaths = includeList.stream()
 				.map( File::getAbsolutePath )
 				.collect( Collectors.toList() )
@@ -798,77 +763,6 @@ public class CommandLineParser implements Closeable
 		}
 		return optionList;
 	}
-
-	/*
-	private static class GetOLStreamResult {
-		private String source;
-		private InputStream stream;
-	}
-	
-	private GetOLStreamResult getOLStream( String olFilepath, LinkedList< String > includePaths, ClassLoader classLoader )
-		throws FileNotFoundException, IOException
-	{
-		GetOLStreamResult result = new GetOLStreamResult();
-
-		URL olURL = null;
-		File f = new File( olFilepath ).getAbsoluteFile();
-		if ( f.exists() ) {
-			result.stream = new FileInputStream( f );
-			result.source = f.toURI().getSchemeSpecificPart();
-			programDirectory = f.getParentFile();
-		} else {
-			for( int i = 0; i < includePaths.size() && result.stream == null; i++ ) {
-				f = new File(
-							includePaths.get( i ) +
-							jolie.lang.Constants.fileSeparator +
-							olFilepath
-						);
-				if ( f.exists() ) {
-					f = f.getAbsoluteFile();
-					result.stream = new FileInputStream( f );
-					result.source = f.toURI().getSchemeSpecificPart();
-					programDirectory = f.getParentFile();
-				}
-			}
-			if ( result.stream == null ) {
-				try {
-					olURL = new URL( olFilepath );
-					result.stream = olURL.openStream();
-					result.source = olFilepath;
-					if ( result.stream == null ) {
-						throw new MalformedURLException();
-					}
-				} catch( MalformedURLException e ) {
-					olURL = classLoader.getResource( olFilepath );
-					if ( olURL != null ) {
-						result.stream = olURL.openStream();
-						result.source = olFilepath;
-					}
-				}
-				if ( programDirectory == null && olURL != null && olURL.getPath() != null ) {
-					// Try to extract the parent directory of the JAP/JAR library file
-					try {
-						File urlFile = new File( JapURLConnection.nestingSeparatorPattern.split( new URI( olURL.getPath() ).getSchemeSpecificPart() )[0] ).getAbsoluteFile();
-						if ( urlFile.exists() ) {
-							programDirectory = urlFile.getParentFile();
-						}
-					} catch( URISyntaxException e ) {}
-				}
-			}
-		}
-		if ( result.stream != null ) {
-			if ( f.exists() && f.getParent() != null ) {
-				includePaths.addFirst( f.getParent() );
-			} else if ( olURL != null ) {
-				String urlString = olURL.toString();
-				includePaths.addFirst( urlString.substring( 0, urlString.lastIndexOf( '/' ) + 1 ) );
-			}
-			
-			result.stream = new BufferedInputStream( result.stream );
-		}
-		return result;
-	}
-	*/
 
 	public Pair< URI, InputStream > openProgram( LinkedList< File > includePaths, String fileName ) throws IOException
 	{
