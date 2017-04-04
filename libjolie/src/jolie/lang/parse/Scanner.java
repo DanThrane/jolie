@@ -130,6 +130,9 @@ public class Scanner
 		INIT,				///< init
 		PROVIDE,			///< provide
 		FROM,			    ///< from
+		PROFILE,			///< profile
+		CONFIGURES,			///< configures
+		EMBEDS,				///< configures
 		ERROR				///< Scanner error
 	}
 	
@@ -184,6 +187,9 @@ public class Scanner
 		unreservedKeywords.put( "false", TokenType.FALSE );
 		unreservedKeywords.put( "provide", TokenType.PROVIDE );
 		unreservedKeywords.put( "from", TokenType.FROM );
+		unreservedKeywords.put( "profile", TokenType.PROFILE );
+		unreservedKeywords.put( "configures", TokenType.CONFIGURES );
+		unreservedKeywords.put( "embeds", TokenType.EMBEDS );
 	}
 	
 	/**

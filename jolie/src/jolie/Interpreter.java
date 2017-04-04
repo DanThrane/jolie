@@ -55,7 +55,10 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Logger;
+
+import jolie.configuration.Configurator;
 import jolie.lang.Constants;
+import jolie.lang.JoliePackage;
 import jolie.lang.parse.OLParseTreeOptimizer;
 import jolie.lang.parse.OLParser;
 import jolie.lang.parse.ParserException;
@@ -267,15 +270,16 @@ public class Interpreter
 	private final ClassLoader parentClassLoader;
 	private final String[] includePaths;
 	private final String[] optionArgs;
+	private final String configurationFile;
+	private final String configurationProfile;
+	private final String thisPackage;
+	private final Map< String, JoliePackage > knownPackages;
 	private final String logPrefix;
 	private final Tracer tracer;
-        private boolean check = false;
+	private boolean check = false;
 	private final Timer timer;
-	// private long inputMessageTimeout = 24 * 60 * 60 * 1000; // 1 day
 	private final long persistentConnectionTimeout = 60 * 60 * 1000; // 1 hour
 	private final long awaitTerminationTimeout = 60 * 1000; // 1 minute
-	// private long persistentConnectionTimeout = 2 * 60 * 1000; // 4 minutes
-	// private long persistentConnectionTimeout = 1;
 
 	// 11 is the default initial capacity for PriorityQueue
 	private final Queue< WeakReference< TimeoutHandler > > timeoutHandlerQueue =
@@ -424,6 +428,39 @@ public class Interpreter
 	public String[] includePaths()
 	{
 		return includePaths;
+	}
+
+	/**
+	 * @return the configuration file
+	 */
+	public String configurationFile()
+	{
+		return configurationFile;
+	}
+
+	/**
+	 * @return the configuration profile
+	 */
+	public String configurationProfile()
+	{
+		return configurationProfile;
+	}
+
+	/**
+	 * @return name of the package, which this interpreter is running
+	 */
+	public String thisPackage()
+	{
+		return thisPackage;
+	}
+
+	/**
+	 * @return the packages known by this interpreter (as passed to us by the command line arguments, usually the
+	 * package manager)
+	 */
+	public Map< String, JoliePackage > knownPackages()
+	{
+		return knownPackages;
 	}
 
 	/**
@@ -840,10 +877,14 @@ public class Interpreter
 		optionArgs = cmdParser.optionArgs();
 		programFilename = cmdParser.programFilepath().getName();
 		arguments = cmdParser.arguments();
-        
+		configurationFile = cmdParser.configurationFile();
+		configurationProfile = cmdParser.configurationProfile();
+		thisPackage = cmdParser.thisPackage();
+		knownPackages = cmdParser.knownPackages();
+
 		this.correlationEngine = cmdParser.correlationAlgorithmType().createInstance( this );
 		
-        commCore = new CommCore( this, cmdParser.connectionsLimit() /*, cmdParser.connectionsCache() */ );
+        commCore = new CommCore( this, cmdParser.connectionsLimit() );
 		includePaths = cmdParser.includePaths();
 
 		StringBuilder builder = new StringBuilder();
@@ -1276,6 +1317,9 @@ public class Interpreter
 			if ( check ) {
 				return false;
 			} else {
+				Configurator configurator = new Configurator( this, program );
+				program = configurator.process();
+
 				return (new OOITBuilder(
 					this,
 					program,

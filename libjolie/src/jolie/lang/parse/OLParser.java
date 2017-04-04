@@ -688,6 +688,10 @@ public class OLParser extends AbstractParser
 				}
 				includeFile = findPackageInclude( joliePackage, includeStr );
 				getToken();
+
+				if ( includeFile == null ) {
+					throwException( "Could not find '" + includeStr + "' in package '" + joliePackage.getName() + "'" );
+				}
 			} else {
 				includeFile = null;
 
@@ -750,8 +754,6 @@ public class OLParser extends AbstractParser
 				return new IncludeFile( new FileInputStream( file ), directory.getAbsolutePath(), file.toURI() );
 			}
 		}
-
-		throwException( "Could not find '" + includeString + "' in package '" + joliePackage.getName() + "'" );
 		return null;
 	}
 
