@@ -26,6 +26,7 @@ import jolie.lang.parse.ast.ConfigurationTree.Region;
 import jolie.lang.parse.ast.OLSyntaxNode;
 import jolie.lang.parse.ast.VariablePathNode;
 import jolie.lang.parse.ast.expression.*;
+import jolie.lang.parse.context.ParsingContext;
 import jolie.util.Pair;
 
 import java.io.File;
@@ -45,6 +46,7 @@ public class COLParser extends AbstractParser
 {
 	private static final String INPUT_PORT = "inputPort";
 	private static final String OUTPUT_PORT = "outputPort";
+	private static final String INTERFACE = "interface";
 
 	private final ConfigurationTree configurationTree = new ConfigurationTree();
 	private File workingDirectory;
@@ -167,9 +169,31 @@ public class COLParser extends AbstractParser
 	{
 		if ( token.isKeyword( INPUT_PORT ) || token.isKeyword( OUTPUT_PORT ) ) {
 			currentRegion.addPort( parsePort() );
+		} else if ( token.isKeyword( INTERFACE ) ) {
+			currentRegion.addInterface( parseInterface() );
 		} else {
 			currentRegion.addConstant( parseConstantDefinition() );
 		}
+	}
+
+	private ConfigurationTree.ExternalInterface parseInterface() throws ParserException, IOException
+	{
+		ParsingContext context = getContext();
+		getToken();
+		assertToken( ID, "expected identifier to name the interface" );
+		String name = token.content();
+		getToken();
+		assertToken( ASSIGN, "expected '='" );
+		getToken();
+		assertToken( ID, "expected identifier to replace interface" );
+		String realName = token.content();
+		getToken();
+		assertToken( FROM, "expected 'from'" );
+		getToken();
+		assertToken( STRING, "expected package name" );
+		String packageName = token.content();
+		getToken();
+		return new ConfigurationTree.ExternalInterface( context, name, realName, packageName );
 	}
 
 	private ConfigurationTree.ExternalConstantNode parseConstantDefinition() throws ParserException, IOException

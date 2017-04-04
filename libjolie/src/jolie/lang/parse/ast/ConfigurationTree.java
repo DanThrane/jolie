@@ -33,6 +33,7 @@ public class ConfigurationTree
 		private String packageName;
 		private final Map< String, ExternalPort > inports = new HashMap<>();
 		private final Map< String, ExternalPort > outports = new HashMap<>();
+		private final Map< String, ExternalInterface > interfaces = new HashMap<>();
 		private final Map< String, ExternalConstantNode > constants = new HashMap<>();
 
 		public String getProfileName()
@@ -64,6 +65,11 @@ public class ConfigurationTree
 			}
 		}
 
+		public void addInterface( ExternalInterface iface )
+		{
+			interfaces.put( iface.name(), iface );
+		}
+
 		public void addConstant( ExternalConstantNode constant )
 		{
 			constants.put( constant.name(), constant );
@@ -77,6 +83,11 @@ public class ConfigurationTree
 		public ExternalPort getOutputPort( String name )
 		{
 			return outports.get( name );
+		}
+
+		public ExternalInterface getInterface( String name )
+		{
+			return interfaces.get( name );
 		}
 
 		public Collection< ExternalConstantNode > getConstants()
@@ -108,12 +119,21 @@ public class ConfigurationTree
 				}
 			} );
 
+			Map< String, ExternalInterface > interfaces = new HashMap<>();
+			region.interfaces.values().forEach( it -> interfaces.put( it.name(), it ) );
+			defaultRegion.interfaces.values().forEach( it -> {
+				if ( !interfaces.containsKey( it.name() ) ) {
+					interfaces.put( it.name(), it );
+				}
+			} );
+
 			Region result = new Region();
 			result.setPackageName( packageName );
 			result.setProfileName( profileName );
 			inports.values().forEach( result::addPort );
 			outports.values().forEach( result::addPort );
 			constants.values().forEach( result::addConstant );
+			interfaces.values().forEach( result::addInterface );
 			return result;
 		}
 
@@ -146,6 +166,42 @@ public class ConfigurationTree
 					destination.put( defaultPort.getName(), defaultPort );
 				}
 			};
+		}
+	}
+
+	public static class ExternalInterface
+	{
+		private final ParsingContext context;
+		private final String name;
+		private final String realName;
+		private final String fromPackage;
+
+		public ExternalInterface( ParsingContext context, String name, String realName, String fromPackage )
+		{
+			this.context = context;
+			this.name = name;
+			this.realName = realName;
+			this.fromPackage = fromPackage;
+		}
+
+		public ParsingContext context()
+		{
+			return context;
+		}
+
+		public String name()
+		{
+			return name;
+		}
+
+		public String realName()
+		{
+			return realName;
+		}
+
+		public String fromPackage()
+		{
+			return fromPackage;
 		}
 	}
 

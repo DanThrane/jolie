@@ -1284,6 +1284,9 @@ public class Interpreter
 			
 			cmdParser.close();
 
+			Configurator configurator = new Configurator( this, program );
+			program = configurator.process();
+
 			check = cmdParser.check();
 
 			final SemanticVerifier semanticVerifier;
@@ -1317,9 +1320,6 @@ public class Interpreter
 			if ( check ) {
 				return false;
 			} else {
-				Configurator configurator = new Configurator( this, program );
-				program = configurator.process();
-
 				return (new OOITBuilder(
 					this,
 					program,

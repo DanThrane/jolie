@@ -24,6 +24,7 @@ import jolie.InterpreterException;
 import jolie.lang.Constants;
 import jolie.lang.JoliePackage;
 import jolie.lang.parse.COLParser;
+import jolie.lang.parse.OLParser;
 import jolie.lang.parse.ParserException;
 import jolie.lang.parse.Scanner;
 import jolie.lang.parse.ast.*;
@@ -80,8 +81,7 @@ public class Configurator
 		}
 		return inputProgram;
 	}
-
-	private ConfigurationTree.Region getDefaultRegion() throws IOException, ParserException, InterpreterException
+private ConfigurationTree.Region getDefaultRegion() throws IOException, ParserException, InterpreterException
 	{
 		File root = new File( thisPackage.getRoot() );
 		File file = new File( root, "default.col" );
@@ -153,6 +153,8 @@ public class Configurator
 				// init process.
 				oldInitBody = ( ( DefinitionNode ) node ).body();
 				nodes = Collections.emptyList();
+			} else if ( node instanceof InterfaceDefinition ) {
+				nodes = processInterface( ( InterfaceDefinition ) node );
 			} else {
 				nodes = Collections.singletonList( node );
 			}
@@ -266,6 +268,58 @@ public class Configurator
 			result.add( n );
 		}
 		return result;
+	}
+
+	private List< OLSyntaxNode > processInterface( InterfaceDefinition n )
+	{
+		ConfigurationTree.ExternalInterface iface = mergedRegion.getInterface( n.name() );
+		if ( iface != null ) {
+			Program parsed = parsePackage( iface.fromPackage() );
+			InterfaceDefinition target = parsed.children().stream()
+					.filter( it -> it instanceof InterfaceDefinition )
+					.map( it -> ( InterfaceDefinition ) it )
+					.filter( it -> it.name().equals( iface.realName() ) )
+					.findAny()
+					.orElseThrow( () -> new ConfigurationException( "Unable to find interface '" + iface.realName() +
+							"' from package '" + iface.fromPackage() + "'" ) );
+
+			InterfaceDefinition replacement = new InterfaceDefinition( target.context(), n.name() );
+			target.operationsMap().forEach( (key, val) -> replacement.addOperation( val ) );
+			return Collections.singletonList( replacement );
+		} else {
+			return Collections.singletonList( n );
+		}
+	}
+
+	private Program parsePackage( String packageName )
+	{
+		JoliePackage pack = parent.knownPackages().get( packageName );
+		if ( pack == null ) {
+			throw new ConfigurationException( "Attempting to parse package '" + packageName + "'. " +
+					"But this package is not known. Did you forget to configure it with --pkg?" );
+		}
+		File entryFile = new File( pack.getRoot(), pack.getEntryPoint() );
+		Scanner scanner;
+		try {
+			scanner = new Scanner( new FileInputStream( entryFile ), entryFile.toURI(), "US-ASCII" );
+		} catch ( IOException e ) {
+			throw new ConfigurationException( "Unable to read package '" + packageName + "'" );
+		}
+
+		// Must add package local paths first
+		List< String > includes = new ArrayList<>();
+		includes.add( pack.getRoot() );
+		includes.add( new File( pack.getRoot(), "include" ).getAbsolutePath() );
+		Collections.addAll( includes, parent.includePaths() );
+		String[] includePaths = includes.toArray( new String[ 0 ] );
+
+		OLParser parser = new OLParser( scanner, includePaths, parent.getClassLoader() );
+		try {
+			return parser.parse();
+		} catch ( IOException | ParserException e ) {
+			throw new ConfigurationException( "Unable to parse package '" + packageName +
+					"'. Cause: " + e.getCause() );
+		}
 	}
 
 	private URI safeParse( String input )
