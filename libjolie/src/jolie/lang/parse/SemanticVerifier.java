@@ -516,6 +516,11 @@ public class SemanticVerifier implements OLVisitor
 
 		insideInputPort = true;
 
+		if ( n.operationsMap().isEmpty() && n.redirectionMap().isEmpty() && n.aggregationList().length == 0 ) {
+			error( n, "expected at least one operation, interface, aggregation or " +
+					"redirection for inputPort " + n.id() );
+		}
+
 		Set< String > opSet = new HashSet<>();
 
 		for( OperationDeclaration op : n.operations() ) {
