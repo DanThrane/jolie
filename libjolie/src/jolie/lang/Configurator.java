@@ -17,12 +17,8 @@
  * MA 02110-1301  USA
  */
 
-package jolie.configuration;
+package jolie.lang;
 
-import jolie.Interpreter;
-import jolie.InterpreterException;
-import jolie.lang.Constants;
-import jolie.lang.JoliePackage;
 import jolie.lang.parse.COLParser;
 import jolie.lang.parse.OLParser;
 import jolie.lang.parse.ParserException;
@@ -46,22 +42,32 @@ import java.util.*;
  */
 public class Configurator
 {
-	private final Interpreter parent;
 	private final JoliePackage thisPackage;
 	private final Program inputProgram;
+	private final String configurationFile;
+	private final String configurationProfile;
+	private final String[] includePaths;
+	private final ClassLoader classLoader;
+	private final Map<String, JoliePackage> knownPackages;
 	private ConfigurationTree.Region mergedRegion;
 	private ConfigurationTree inputTree;
 
-	public Configurator( Interpreter parent, Program program )
+	public Configurator( Program program, String thisPackageName, Map<String, JoliePackage> knownPackages,
+						 String configurationFile, String configurationProfile, String[] includePaths,
+						 ClassLoader classLoader )
 	{
-		this.parent = parent;
 		this.inputProgram = program;
-		thisPackage = parent.knownPackages().get( parent.thisPackage() );
+		thisPackage = knownPackages.get( thisPackageName );
+		this.configurationFile = configurationFile;
+		this.configurationProfile = configurationProfile;
+		this.knownPackages = knownPackages;
+		this.includePaths = includePaths;
+		this.classLoader = classLoader;
 	}
 
-	public Program process() throws InterpreterException, ParserException, IOException
+	public Program process() throws ConfigurationException, ParserException, IOException
 	{
-		if ( parent.thisPackage() != null ) {
+		if ( thisPackage != null ) {
 			ConfigurationTree.Region region = getRegionFromArguments();
 			ConfigurationTree.Region defaultRegion = getDefaultRegion();
 
@@ -69,19 +75,11 @@ public class Configurator
 				region = ConfigurationTree.Region.merge( region, defaultRegion );
 			}
 			mergedRegion = region;
-			try {
-				return doProcess( inputProgram );
-			} catch ( ConfigurationException e ) {
-				// We need an unchecked exception to allow throwing from
-				// visitor. We use this exception internally, and just rethrow
-				// it as an interpreter exception (which the upper layer
-				// expects us to do).
-				throw new InterpreterException( e );
-			}
+			return doProcess( inputProgram );
 		}
 		return inputProgram;
 	}
-private ConfigurationTree.Region getDefaultRegion() throws IOException, ParserException, InterpreterException
+private ConfigurationTree.Region getDefaultRegion() throws IOException, ParserException, ConfigurationException
 	{
 		File root = new File( thisPackage.getRoot() );
 		File file = new File( root, "default.col" );
@@ -94,22 +92,23 @@ private ConfigurationTree.Region getDefaultRegion() throws IOException, ParserEx
 		ConfigurationTree tree = parser.parse();
 
 		if ( tree.getRegions().size() != 1 ) {
-			throw new InterpreterException( "Default configuration unit (" + file.getAbsolutePath() + ") contains " +
+			throw new ConfigurationException( "Default configuration unit (" + file.getAbsolutePath() + ") contains " +
 					"more than one unit or no units. Only one unit named 'default' is allowed" );
 		}
 
 		if ( !tree.getRegions().get( 0 ).getProfileName().equals( "default" ) ) {
-			throw new InterpreterException( "Default configuration unit (" + file.getAbsolutePath() + ") is not " +
+			throw new ConfigurationException( "Default configuration unit (" + file.getAbsolutePath() + ") is not " +
 					"named correctly. Only one unit named 'default' is allowed" );
 		}
 
 		return tree.getRegions().get( 0 );
 	}
 
-	private ConfigurationTree.Region getRegionFromArguments() throws IOException, ParserException, InterpreterException
+	private ConfigurationTree.Region getRegionFromArguments() throws IOException, ParserException,
+			ConfigurationException
 	{
-		if ( parent.configurationFile() != null ) {
-			File configFile = new File( parent.configurationFile() );
+		if ( configurationFile != null ) {
+			File configFile = new File( configurationFile );
 			COLParser parser = new COLParser(
 					new Scanner( new FileInputStream( configFile ), configFile.toURI(), "US-ASCII" ),
 					configFile.getParentFile()
@@ -117,12 +116,12 @@ private ConfigurationTree.Region getDefaultRegion() throws IOException, ParserEx
 
 			inputTree = parser.parse();
 			return inputTree.getRegions().stream()
-					.filter( it -> it.getProfileName().equals( parent.configurationProfile() ) )
+					.filter( it -> it.getProfileName().equals( configurationProfile ) )
 					.findAny()
-					.orElseThrow( () -> new InterpreterException(
+					.orElseThrow( () -> new ConfigurationException(
 							"Could not find requested configuration region." +
-									" Was requested to find '" + parent.configurationProfile() + "' from '" +
-									parent.configurationFile() + "'. This configuration should match package '" +
+									" Was requested to find '" + configurationProfile + "' from '" +
+									configurationFile + "'. This configuration should match package '" +
 									thisPackage.getName()
 					) );
 		} else {
@@ -230,7 +229,7 @@ private ConfigurationTree.Region getDefaultRegion() throws IOException, ParserEx
 					Constants.EmbeddedServiceType.JOLIE,
 					String.format( "--conf %s %s %s.pkg",
 							port.getEmbeds(),
-							parent.configurationFile(),
+							configurationFile,
 							region.getPackageName()
 					),
 					n.id()
@@ -293,7 +292,7 @@ private ConfigurationTree.Region getDefaultRegion() throws IOException, ParserEx
 
 	private Program parsePackage( String packageName )
 	{
-		JoliePackage pack = parent.knownPackages().get( packageName );
+		JoliePackage pack = knownPackages.get( packageName );
 		if ( pack == null ) {
 			throw new ConfigurationException( "Attempting to parse package '" + packageName + "'. " +
 					"But this package is not known. Did you forget to configure it with --pkg?" );
@@ -310,10 +309,10 @@ private ConfigurationTree.Region getDefaultRegion() throws IOException, ParserEx
 		List< String > includes = new ArrayList<>();
 		includes.add( pack.getRoot() );
 		includes.add( new File( pack.getRoot(), "include" ).getAbsolutePath() );
-		Collections.addAll( includes, parent.includePaths() );
+		Collections.addAll( includes, includePaths );
 		String[] includePaths = includes.toArray( new String[ 0 ] );
 
-		OLParser parser = new OLParser( scanner, includePaths, parent.getClassLoader() );
+		OLParser parser = new OLParser( scanner, includePaths, classLoader );
 		try {
 			return parser.parse();
 		} catch ( IOException | ParserException e ) {
@@ -331,7 +330,7 @@ private ConfigurationTree.Region getDefaultRegion() throws IOException, ParserEx
 		}
 	}
 
-	private static class ConfigurationException extends RuntimeException
+	public static class ConfigurationException extends RuntimeException
 	{
 		ConfigurationException( String message )
 		{

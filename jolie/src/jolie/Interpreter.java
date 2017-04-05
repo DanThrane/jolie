@@ -56,7 +56,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Logger;
 
-import jolie.configuration.Configurator;
+import jolie.lang.Configurator;
 import jolie.lang.Constants;
 import jolie.lang.JoliePackage;
 import jolie.lang.parse.OLParseTreeOptimizer;
@@ -1284,7 +1284,8 @@ public class Interpreter
 			
 			cmdParser.close();
 
-			Configurator configurator = new Configurator( this, program );
+			Configurator configurator = new Configurator( program, thisPackage(), knownPackages(),
+					configurationFile(), configurationProfile(), includePaths(), getClassLoader() );
 			program = configurator.process();
 
 			check = cmdParser.check();
