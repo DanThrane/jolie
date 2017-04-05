@@ -25,6 +25,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.util.Map;
+
+import jolie.lang.InterfaceCollapser;
 import jolie.lang.parse.OLParseTreeOptimizer;
 import jolie.lang.parse.OLParser;
 import jolie.lang.parse.ParserException;
@@ -60,6 +62,8 @@ public class ParsingUtils
 		olParser.putConstants( definedConstants );
 		Program program = olParser.parse();
 		program = OLParseTreeOptimizer.optimize( program );
+		InterfaceCollapser collapser = new InterfaceCollapser(program);
+		collapser.collapse();
 		SemanticVerifier semanticVerifier = new SemanticVerifier( program, configuration );
 		semanticVerifier.validate();
 
@@ -80,6 +84,8 @@ public class ParsingUtils
 		olParser.putConstants( definedConstants );
 		Program program = olParser.parse();
 		program = OLParseTreeOptimizer.optimize( program );
+		InterfaceCollapser collapser = new InterfaceCollapser(program);
+		collapser.collapse();
 		SemanticVerifier semanticVerifier = new SemanticVerifier( program );
 		semanticVerifier.validate();
 
