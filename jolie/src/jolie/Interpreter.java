@@ -58,6 +58,7 @@ import java.util.logging.Logger;
 
 import jolie.lang.Configurator;
 import jolie.lang.Constants;
+import jolie.lang.InterfaceCollapser;
 import jolie.lang.JoliePackage;
 import jolie.lang.parse.OLParseTreeOptimizer;
 import jolie.lang.parse.OLParser;
@@ -1287,6 +1288,9 @@ public class Interpreter
 			Configurator configurator = new Configurator( program, thisPackage(), knownPackages(),
 					configurationFile(), configurationProfile(), includePaths(), getClassLoader() );
 			program = configurator.process();
+
+			InterfaceCollapser collapser = new InterfaceCollapser( program );
+			collapser.collapse();
 
 			check = cmdParser.check();
 

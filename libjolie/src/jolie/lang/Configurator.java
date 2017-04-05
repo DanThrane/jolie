@@ -25,6 +25,7 @@ import jolie.lang.parse.ParserException;
 import jolie.lang.parse.Scanner;
 import jolie.lang.parse.ast.*;
 import jolie.lang.parse.ast.expression.ConstantStringExpression;
+import jolie.lang.parse.ast.types.*;
 import jolie.lang.parse.context.ParsingContext;
 import jolie.util.Pair;
 
@@ -38,7 +39,7 @@ import java.util.*;
 /**
  * Processes a {@link Program} to add external configuration.
  *
- * @author Dan Sebastian Thrane <dthrane@gmail.com>
+ * @author Dan Sebastian Thrane
  */
 public class Configurator
 {
@@ -48,11 +49,11 @@ public class Configurator
 	private final String configurationProfile;
 	private final String[] includePaths;
 	private final ClassLoader classLoader;
-	private final Map<String, JoliePackage> knownPackages;
+	private final Map< String, JoliePackage > knownPackages;
 	private ConfigurationTree.Region mergedRegion;
 	private ConfigurationTree inputTree;
 
-	public Configurator( Program program, String thisPackageName, Map<String, JoliePackage> knownPackages,
+	public Configurator( Program program, String thisPackageName, Map< String, JoliePackage > knownPackages,
 						 String configurationFile, String configurationProfile, String[] includePaths,
 						 ClassLoader classLoader )
 	{
@@ -79,7 +80,8 @@ public class Configurator
 		}
 		return inputProgram;
 	}
-private ConfigurationTree.Region getDefaultRegion() throws IOException, ParserException, ConfigurationException
+
+	private ConfigurationTree.Region getDefaultRegion() throws IOException, ParserException, ConfigurationException
 	{
 		File root = new File( thisPackage.getRoot() );
 		File file = new File( root, "default.col" );
@@ -273,6 +275,7 @@ private ConfigurationTree.Region getDefaultRegion() throws IOException, ParserEx
 	{
 		ConfigurationTree.ExternalInterface iface = mergedRegion.getInterface( n.name() );
 		if ( iface != null ) {
+			List< OLSyntaxNode > result = new ArrayList<>();
 			Program parsed = parsePackage( iface.fromPackage() );
 			InterfaceDefinition target = parsed.children().stream()
 					.filter( it -> it instanceof InterfaceDefinition )
@@ -282,11 +285,97 @@ private ConfigurationTree.Region getDefaultRegion() throws IOException, ParserEx
 					.orElseThrow( () -> new ConfigurationException( "Unable to find interface '" + iface.realName() +
 							"' from package '" + iface.fromPackage() + "'" ) );
 
-			InterfaceDefinition replacement = new InterfaceDefinition( target.context(), n.name() );
-			target.operationsMap().forEach( (key, val) -> replacement.addOperation( val ) );
-			return Collections.singletonList( replacement );
+			// We need to know all types to resolve links. This is usually done later, by the SemanticVerifier, but we
+			// need this to happen before the SemanticVerifier runs. We will need to this to copy over the correct
+			// type definitions from the target interface.
+			Map< String, TypeDefinition > allTypes = new HashMap<>();
+			parsed.children()
+					.stream()
+					.filter( it -> it instanceof TypeDefinition )
+					.map( it -> ( TypeDefinition ) it )
+					.forEach( it -> allTypes.put( it.id(), it ) ); // TODO Duplicates?
+
+			for ( OperationDeclaration op : target.operationsMap().values() ) {
+				if ( op instanceof OneWayOperationDeclaration ) {
+					OneWayOperationDeclaration owDecl = ( OneWayOperationDeclaration ) op;
+					result.addAll( resolveType( parsed, allTypes, owDecl.requestType() ) );
+				} else if ( op instanceof RequestResponseOperationDeclaration ) {
+					RequestResponseOperationDeclaration rrDecl = ( RequestResponseOperationDeclaration ) op;
+					result.addAll( resolveType( parsed, allTypes, rrDecl.requestType() ) );
+					result.addAll( resolveType( parsed, allTypes, rrDecl.responseType() ) );
+				}
+			}
+
+			n.operationsMap().clear();
+			target.copyTo( n );
+			result.add( n );
+			return result;
 		} else {
 			return Collections.singletonList( n );
+		}
+	}
+
+	private Set< OLSyntaxNode > resolveType( Program program, Map< String, TypeDefinition > allTypes,
+											 TypeDefinition definition )
+	{
+		Set< OLSyntaxNode > result = new HashSet<>();
+		collectTypes( program, allTypes, result, true, definition );
+		return result;
+	}
+
+	private void collectTypes( Program program, Map< String, TypeDefinition > allTypes,
+							   Set< OLSyntaxNode > node, boolean topLevel, TypeDefinition definition )
+	{
+		if ( definition instanceof TypeChoiceDefinition ) {
+			collectTypes( program, allTypes, node, topLevel, ( TypeChoiceDefinition ) definition );
+		} else if ( definition instanceof TypeDefinitionLink ) {
+			collectTypes( program, allTypes, node, topLevel, ( TypeDefinitionLink ) definition );
+		} else if ( definition instanceof TypeInlineDefinition ) {
+			collectTypes( program, allTypes, node, topLevel, ( TypeInlineDefinition ) definition );
+		}
+		// Do nothing for TypeDefinitionUndefined
+	}
+
+	private void collectTypes( Program program, Map< String, TypeDefinition > allTypes,
+							   Set< OLSyntaxNode > node, boolean topLevel, TypeChoiceDefinition def )
+	{
+		if ( topLevel ) node.add( def );
+		if ( !node.contains( def.left() ) ) {
+			collectTypes( program, allTypes, node, false, def.left() );
+		}
+
+		if ( !node.contains( def.right() ) ) {
+			collectTypes( program, allTypes, node, false, def.right() );
+		}
+	}
+
+	private void collectTypes( Program program, Map< String, TypeDefinition > allTypes,
+							   Set< OLSyntaxNode > node, boolean topLevel, TypeDefinitionLink def )
+	{
+		TypeDefinition definition = allTypes.get( def.linkedTypeName() );
+		if ( definition == null ) {
+			throw new ConfigurationException( "Undefined type '" + def.linkedTypeName() + "' [" +
+					def.context().sourceName() + ":" + def.context().line() +
+					"]. Happened while attempting to inject interface" );
+		}
+		if ( topLevel ) node.add( def );
+
+		if ( !node.contains( definition ) ) {
+			// Following a link always gives us a top-level definition.
+			collectTypes( program, allTypes, node, true, definition );
+		}
+	}
+
+	private void collectTypes( Program program, Map< String, TypeDefinition > allTypes,
+							   Set< OLSyntaxNode > node, boolean topLevel, TypeInlineDefinition def )
+	{
+		if ( topLevel ) node.add( def );
+		if ( def.hasSubTypes() ) {
+			for ( Map.Entry< String, TypeDefinition > entry : def.subTypes() ) {
+				if ( !node.contains( entry.getValue() ) ) {
+					collectTypes( program, allTypes, node, false, entry.getValue() );
+				}
+			}
 		}
 	}
 
@@ -316,8 +405,9 @@ private ConfigurationTree.Region getDefaultRegion() throws IOException, ParserEx
 		try {
 			return parser.parse();
 		} catch ( IOException | ParserException e ) {
+			e.printStackTrace();
 			throw new ConfigurationException( "Unable to parse package '" + packageName +
-					"'. Cause: " + e.getCause() );
+					"'. " );
 		}
 	}
 

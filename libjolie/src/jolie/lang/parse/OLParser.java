@@ -1041,7 +1041,6 @@ public class OLParser extends AbstractParser
                     if ( i == null ) {
                         throwException( "Invalid interface name: " + token.content() );
                     }
-                    i.copyTo( iface );
                     interfaceList.add( i );
                     getToken();
 
@@ -1103,8 +1102,6 @@ public class OLParser extends AbstractParser
 		eat( Scanner.TokenType.RCURLY, "} expected" );
 		if ( inputPortLocation == null ) {
 			throwException( "expected location URI for " + inputPortName );
-		} else if ( iface.operationsMap().isEmpty() && redirectionMap.isEmpty() && aggregationList.isEmpty() ) {
-			throwException( "expected at least one operation, interface, aggregation or redirection for inputPort " + inputPortName );
 		} else if ( protocolId == null && !inputPortLocation.toString().equals( Constants.LOCAL_LOCATION_KEYWORD ) && !inputPortLocation.getScheme().equals( Constants.LOCAL_LOCATION_KEYWORD ) ) {
 			throwException( "expected protocol for inputPort " + inputPortName );
 		}
@@ -1112,7 +1109,6 @@ public class OLParser extends AbstractParser
 		for( InterfaceDefinition i : interfaceList ) {
 			iport.addInterface( i );
 		}
-		iface.copyTo( iport );
 		program.addChild( iport );
 		return iport;
 	}
@@ -1237,7 +1233,6 @@ public class OLParser extends AbstractParser
 					if ( i == null ) {
 						throwException( "Invalid interface name: " + token.content() );
 					}
-					i.copyTo( p );
 					p.addInterface( i );
 					getToken();
 					
