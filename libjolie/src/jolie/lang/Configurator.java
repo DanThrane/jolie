@@ -206,7 +206,7 @@ public class Configurator
 				n.setLocation( safeParse( port.getLocation() ) );
 			}
 
-			if ( port.getProtocol() != null ) {
+			if ( port.getProtocol().getType() != null ) {
 				n.setProtocolId( port.getProtocol().getType() );
 
 				if ( port.getProtocol().getProperties() != null ) {
@@ -353,6 +353,9 @@ public class Configurator
 							   Set< OLSyntaxNode > node, boolean topLevel, TypeDefinitionLink def )
 	{
 		TypeDefinition definition = allTypes.get( def.linkedTypeName() );
+		if ( def.linkedTypeName().equals( "undefined" ) ) {
+			definition = TypeDefinitionUndefined.getInstance();
+		}
 		if ( definition == null ) {
 			throw new ConfigurationException( "Undefined type '" + def.linkedTypeName() + "' [" +
 					def.context().sourceName() + ":" + def.context().line() +
