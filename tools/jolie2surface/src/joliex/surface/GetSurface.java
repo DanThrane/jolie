@@ -55,9 +55,11 @@ public class GetSurface
 			}
 			CommandLineParser cmdParser = new CommandLineParser( args, GetSurface.class.getClassLoader() );
 			Program program = ParsingUtils.parseProgram(
-				cmdParser.programStream(),
-				cmdParser.programFilepath().toURI(), cmdParser.charset(),
-				cmdParser.includePaths(), cmdParser.jolieClassLoader(), cmdParser.definedConstants() );
+					cmdParser.programStream(),
+					cmdParser.programFilepath().toURI(), cmdParser.charset(),
+					cmdParser.includePaths(), cmdParser.jolieClassLoader(), cmdParser.definedConstants(), null,
+					cmdParser.knownPackages(), cmdParser.thisPackage(),
+					cmdParser.configurationFile(), cmdParser.configurationProfile() );
 			ProgramInspector inspector = ParsingUtils.createInspector( program );
 			SurfaceCreator document = new SurfaceCreator( inspector, program.context().source() );
                        

@@ -206,7 +206,7 @@ public class Configurator
 				n.setLocation( safeParse( port.getLocation() ) );
 			}
 
-			if ( port.getProtocol().getType() != null ) {
+			if ( port.getProtocol() != null && port.getProtocol().getType() != null ) {
 				n.setProtocolId( port.getProtocol().getType() );
 
 				if ( port.getProtocol().getProperties() != null ) {

@@ -26,7 +26,9 @@ import java.io.InputStream;
 import java.net.URI;
 import java.util.Map;
 
+import jolie.lang.Configurator;
 import jolie.lang.InterfaceCollapser;
+import jolie.lang.JoliePackage;
 import jolie.lang.parse.OLParseTreeOptimizer;
 import jolie.lang.parse.OLParser;
 import jolie.lang.parse.ParserException;
@@ -40,60 +42,86 @@ import jolie.lang.parse.util.impl.ProgramInspectorCreatorVisitor;
  * Utility class for accessing the functionalities of the JOLIE parsing
  * library without having to worry about correctly instantiating all
  * the related objects (parser, scanner, etc.).
+ *
  * @author Fabrizio Montesi
  */
 public class ParsingUtils
 {
 	private ParsingUtils()
-	{}
+	{
+	}
 
 	public static Program parseProgram(
-		InputStream inputStream,
-		URI source,
-		String charset,
-		String[] includePaths,
-		ClassLoader classLoader,
-		Map< String, Scanner.Token > definedConstants,
-		SemanticVerifier.Configuration configuration
+			InputStream inputStream,
+			URI source,
+			String charset,
+			String[] includePaths,
+			ClassLoader classLoader,
+			Map< String, Scanner.Token > definedConstants,
+			SemanticVerifier.Configuration configuration,
+			Map< String, JoliePackage > knownPackages,
+			String thisPackage,
+			String configurationFile,
+			String configurationProfile
 	)
-		throws IOException, ParserException, SemanticException
+			throws IOException, ParserException, SemanticException
 	{
 		OLParser olParser = new OLParser( new Scanner( inputStream, source, charset ), includePaths, classLoader );
 		olParser.putConstants( definedConstants );
 		Program program = olParser.parse();
 		program = OLParseTreeOptimizer.optimize( program );
-		InterfaceCollapser collapser = new InterfaceCollapser(program);
+		if ( knownPackages != null && thisPackage != null && configurationFile != null &&
+				configurationProfile != null ) {
+			Configurator configurator = new Configurator( program, thisPackage, knownPackages, configurationFile,
+					configurationProfile, includePaths, classLoader );
+			program = configurator.process();
+		}
+		InterfaceCollapser collapser = new InterfaceCollapser( program );
 		collapser.collapse();
-		SemanticVerifier semanticVerifier = new SemanticVerifier( program, configuration );
+		SemanticVerifier semanticVerifier;
+		if ( configuration == null ) {
+			semanticVerifier = new SemanticVerifier( program );
+		} else {
+			semanticVerifier = new SemanticVerifier( program, configuration );
+		}
 		semanticVerifier.validate();
 
 		return program;
 	}
-	
-	public static Program parseProgram(
-		InputStream inputStream,
-		URI source,
-		String charset,
-		String[] includePaths,
-		ClassLoader classLoader,
-		Map< String, Scanner.Token > definedConstants
-	)
-		throws IOException, ParserException, SemanticException
-	{
-		OLParser olParser = new OLParser( new Scanner( inputStream, source, charset ), includePaths, classLoader );
-		olParser.putConstants( definedConstants );
-		Program program = olParser.parse();
-		program = OLParseTreeOptimizer.optimize( program );
-		InterfaceCollapser collapser = new InterfaceCollapser(program);
-		collapser.collapse();
-		SemanticVerifier semanticVerifier = new SemanticVerifier( program );
-		semanticVerifier.validate();
 
-		return program;
+	public static Program parseProgram(
+			InputStream inputStream,
+			URI source,
+			String charset,
+			String[] includePaths,
+			ClassLoader classLoader,
+			Map< String, Scanner.Token > definedConstants,
+			SemanticVerifier.Configuration configuration
+	)
+			throws IOException, ParserException, SemanticException
+	{
+		return parseProgram( inputStream, source, charset, includePaths, classLoader, definedConstants,
+				configuration, null, null, null, null );
+	}
+
+
+	public static Program parseProgram(
+			InputStream inputStream,
+			URI source,
+			String charset,
+			String[] includePaths,
+			ClassLoader classLoader,
+			Map< String, Scanner.Token > definedConstants
+	)
+			throws IOException, ParserException, SemanticException
+	{
+		return parseProgram( inputStream, source, charset, includePaths, classLoader, definedConstants,
+				null );
 	}
 
 	/**
 	 * Creates a {@link ProgramInspector} for the specified {@link jolie.lang.parse.ast.Program}.
+	 *
 	 * @param program the {@link jolie.lang.parse.ast.Program} to inspect
 	 * @return a {@link ProgramInspector} for the specified {@link jolie.lang.parse.ast.Program}
 	 * @see ProgramInspector
