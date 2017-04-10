@@ -41,7 +41,8 @@ import java.util.*;
  *
  * @author Dan Sebastian Thrane
  */
-public class Configurator {
+public class Configurator
+{
 	private final JoliePackage thisPackage;
 	private final Program inputProgram;
 	private final String configurationFile;
@@ -262,8 +263,8 @@ public class Configurator {
 		if ( port != null ) {
 			if ( !n.isExternal() ) {
 				throw new ConfigurationException( String.format(
-					"Attempting to configure non-external input port %s defined at %s:%d.\n  " +
-							"Configuration took place at %s:%d",
+						"Attempting to configure non-external input port %s defined at %s:%d.\n  " +
+								"Configuration took place at %s:%d",
 						n.id(), n.context().source().toString(), n.context().line(),
 						port.getContext().source().toString(), port.getContext().line()
 				) );
@@ -298,8 +299,8 @@ public class Configurator {
 		if ( iface != null ) {
 			if ( !n.isExternal() ) {
 				throw new ConfigurationException( String.format(
-					"Attempting to configure non-external interface %s defined at %s:%d.\n  " +
-							"Configuration took place at %s:%d",
+						"Attempting to configure non-external interface %s defined at %s:%d.\n  " +
+								"Configuration took place at %s:%d",
 						n.name(), n.context().source().toString(), n.context().line(),
 						iface.context().source().toString(), iface.context().line()
 				) );
@@ -454,7 +455,8 @@ public class Configurator {
 		}
 	}
 
-	public static class ConfigurationException extends RuntimeException {
+	public static class ConfigurationException extends RuntimeException
+	{
 		ConfigurationException( String message )
 		{
 			super( message );
