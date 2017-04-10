@@ -79,6 +79,7 @@ public class CommandLineParser implements Closeable
 	private String configurationProfile = null;
 	private String configurationFile = null;
 	private String thisPackage = null;
+	private String parentPackage = null;
 
 	public Map< String, JoliePackage > knownPackages()
 	{
@@ -98,6 +99,11 @@ public class CommandLineParser implements Closeable
 	public String thisPackage()
 	{
 		return thisPackage;
+	}
+
+	public String parentPackage()
+	{
+		return parentPackage;
 	}
 
 	/**
@@ -569,6 +575,13 @@ public class CommandLineParser implements Closeable
 				configurationProfile = argsList.get( i );
 				i++;
 				configurationFile = argsList.get( i );
+			} else if ( argsList.get( i ).equals( "--parent" ) ) {
+				if ( argsList.size() <= i + 1 ) {
+					throw new CommandLineException( "Expected parent package after --parent" );
+				}
+
+				i++;
+				parentPackage = argsList.get( i );
 			} else {
 				// It's an unrecognized argument
 				int newIndex = argHandler.onUnrecognizedArgument( argsList, i );

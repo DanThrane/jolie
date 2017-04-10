@@ -273,6 +273,7 @@ public class Interpreter
 	private final String[] optionArgs;
 	private final String configurationFile;
 	private final String configurationProfile;
+	private final String parentPackage;
 	private final String thisPackage;
 	private final Map< String, JoliePackage > knownPackages;
 	private final String logPrefix;
@@ -453,6 +454,14 @@ public class Interpreter
 	public String thisPackage()
 	{
 		return thisPackage;
+	}
+
+	/**
+	 * @return name of parent package or null.
+	 */
+	public String parentPackage()
+	{
+		return parentPackage;
 	}
 
 	/**
@@ -880,6 +889,7 @@ public class Interpreter
 		arguments = cmdParser.arguments();
 		configurationFile = cmdParser.configurationFile();
 		configurationProfile = cmdParser.configurationProfile();
+		parentPackage = cmdParser.parentPackage();
 		thisPackage = cmdParser.thisPackage();
 		knownPackages = cmdParser.knownPackages();
 
@@ -1286,7 +1296,7 @@ public class Interpreter
 			cmdParser.close();
 
 			Configurator configurator = new Configurator( program, thisPackage(), knownPackages(),
-					configurationFile(), configurationProfile(), includePaths(), getClassLoader() );
+					configurationFile(), configurationProfile(), includePaths(), getClassLoader(), parentPackage() );
 			program = configurator.process();
 
 			InterfaceCollapser collapser = new InterfaceCollapser( program );

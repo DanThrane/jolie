@@ -352,8 +352,6 @@ public class ConfigurationTree
 		{
 			this.type = type;
 			this.properties = properties;
-
-			assert type != null;
 		}
 
 		public String getType()
@@ -364,27 +362,6 @@ public class ConfigurationTree
 		public OLSyntaxNode getProperties()
 		{
 			return properties;
-		}
-
-		@Override
-		public boolean equals( Object o )
-		{
-			if ( this == o ) return true;
-			if ( o == null || getClass() != o.getClass() ) return false;
-
-			PortProtocol that = ( PortProtocol ) o;
-
-			if ( !type.equals( that.type ) ) return false;
-			return properties != null ? properties.equals( that.properties ) : that.properties == null;
-
-		}
-
-		@Override
-		public int hashCode()
-		{
-			int result = type.hashCode();
-			result = 31 * result + ( properties != null ? properties.hashCode() : 0 );
-			return result;
 		}
 
 		@Override

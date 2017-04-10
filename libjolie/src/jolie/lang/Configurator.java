@@ -44,6 +44,7 @@ import java.util.*;
 public class Configurator
 {
 	private final JoliePackage thisPackage;
+	private JoliePackage parentPackage;
 	private final Program inputProgram;
 	private final String configurationFile;
 	private final String configurationProfile;
@@ -55,7 +56,7 @@ public class Configurator
 
 	public Configurator( Program program, String thisPackageName, Map< String, JoliePackage > knownPackages,
 						 String configurationFile, String configurationProfile, String[] includePaths,
-						 ClassLoader classLoader )
+						 ClassLoader classLoader, String parentPackage )
 	{
 		this.inputProgram = program;
 		thisPackage = knownPackages.get( thisPackageName );
@@ -64,6 +65,7 @@ public class Configurator
 		this.knownPackages = knownPackages;
 		this.includePaths = includePaths;
 		this.classLoader = classLoader;
+		this.parentPackage = parentPackage != null ? knownPackages.get( parentPackage ) : null;
 	}
 
 	public Program process() throws ConfigurationException, ParserException, IOException
@@ -111,6 +113,10 @@ public class Configurator
 	{
 		if ( configurationFile != null ) {
 			File configFile = new File( configurationFile );
+			if ( !configFile.isAbsolute() && parentPackage != null ) {
+				File root = new File( parentPackage.getRoot() );
+				configFile = new File( root, configurationFile );
+			}
 			COLParser parser = new COLParser(
 					new Scanner( new FileInputStream( configFile ), configFile.toURI(), "US-ASCII" ),
 					configFile.getParentFile()
@@ -124,7 +130,7 @@ public class Configurator
 							"Could not find requested configuration region." +
 									" Was requested to find '" + configurationProfile + "' from '" +
 									configurationFile + "'. This configuration should match package '" +
-									thisPackage.getName()
+									thisPackage.getName() + "'"
 					) );
 		} else {
 			ConfigurationTree.Region region = new ConfigurationTree.Region();
@@ -244,7 +250,7 @@ public class Configurator
 					Constants.EmbeddedServiceType.JOLIE,
 					String.format( "--conf %s %s %s.pkg",
 							port.getEmbeds(),
-							configurationFile,
+							new File( thisPackage.getRoot(), configurationFile).getAbsolutePath(),
 							region.getPackageName()
 					),
 					n.id()
@@ -322,6 +328,16 @@ public class Configurator
 					.findAny()
 					.orElseThrow( () -> new ConfigurationException( "Unable to find interface '" + iface.realName() +
 							"' from package '" + iface.fromPackage() + "'" ) );
+
+			if ( target.isExternal() ) {
+				throw new ConfigurationException( String.format(
+						"Attempting to inject the empty interface %s [%s:%d] into %s [%s:%d].\n  " +
+								"Configuration took place at %s:%d",
+						iface.realName(), iface.context().source().toString(), iface.context().line(),
+						n.name(), n.context().source().toString(), n.context().line(),
+						iface.context().source().toString(), iface.context().line()
+				) );
+			}
 
 			// We need to know all types to resolve links. This is usually done later, by the SemanticVerifier, but we
 			// need this to happen before the SemanticVerifier runs. We will need to this to copy over the correct

@@ -73,7 +73,7 @@ public class ParsingUtils
 		if ( knownPackages != null && thisPackage != null && configurationFile != null &&
 				configurationProfile != null ) {
 			Configurator configurator = new Configurator( program, thisPackage, knownPackages, configurationFile,
-					configurationProfile, includePaths, classLoader );
+					configurationProfile, includePaths, classLoader, null );
 			program = configurator.process();
 		}
 		InterfaceCollapser collapser = new InterfaceCollapser( program );
