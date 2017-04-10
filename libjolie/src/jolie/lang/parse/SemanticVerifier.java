@@ -30,6 +30,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.logging.Logger;
+
+import jolie.lang.Constants;
 import jolie.lang.Constants.ExecutionMode;
 import jolie.lang.Constants.OperandType;
 import jolie.lang.Constants.OperationType;
@@ -130,18 +132,18 @@ public class SemanticVerifier implements OLVisitor
 {
 	public static class Configuration {
 		private boolean checkForMain = true;
-		
+
 		public void setCheckForMain( boolean checkForMain )
 		{
 			this.checkForMain = checkForMain;
 		}
-		
+
 		public boolean checkForMain()
 		{
 			return checkForMain;
 		}
 	}
-	
+
 	private final Program program;
 	private boolean valid = true;
 	private final SemanticException semanticException = new SemanticException();
@@ -150,7 +152,7 @@ public class SemanticVerifier implements OLVisitor
 	private ExecutionInfo executionInfo = new ExecutionInfo( URIParsingContext.DEFAULT, ExecutionMode.SINGLE );
 	private final Map< String, InputPortInfo > inputPorts = new HashMap<>();
 	private final Map< String, OutputPortInfo > outputPorts = new HashMap<>();
-	
+
 	private final Set< String > subroutineNames = new HashSet<> ();
 	private final Map< String, OneWayOperationDeclaration > oneWayOperations =
 						new HashMap<>();
@@ -174,12 +176,12 @@ public class SemanticVerifier implements OLVisitor
 	private ExecutionMode executionMode = ExecutionMode.SINGLE;
 
 	private static final Logger logger = Logger.getLogger( "JOLIE" );
-	
+
 	private final Map< String, TypeDefinition > definedTypes;
 	private final List< TypeDefinitionLink > definedTypeLinks = new LinkedList<>();
 	//private TypeDefinition rootType; // the type representing the whole session state
 	private final Map< String, Boolean > isConstantMap = new HashMap<>();
-	
+
 	private OperationType insideCourierOperationType = null;
 
 	public SemanticVerifier( Program program, Configuration configuration )
@@ -194,7 +196,7 @@ public class SemanticVerifier implements OLVisitor
 			jolie.lang.Constants.RANGE_ONE_TO_ONE
 		);*/
 	}
-	
+
 	public SemanticVerifier( Program program )
 	{
 		this( program, new Configuration() );
@@ -267,11 +269,11 @@ public class SemanticVerifier implements OLVisitor
 			logger.warning( node.context().sourceName() + ":" + node.context().line() + ": " + message );
 		}
 	}
-	
+
 	private void error( OLSyntaxNode node, String message )
 	{
 		valid = false;
-		semanticException.addSemanticError( node, message);		
+		semanticException.addSemanticError( node, message);
 	}
 
 	private void resolveLazyLinks()
@@ -318,7 +320,7 @@ public class SemanticVerifier implements OLVisitor
 			for( CorrelationSetInfo.CorrelationVariableInfo csetVar : cset.variables() ) {
 				for( CorrelationAliasInfo alias : csetVar.aliases() ) {
 					checkCorrelationAlias( alias );
-					
+
 					operations = inputTypeNameMap.get( alias.guardName() );
 					for( String operationName : operations ) {
 						currCorrelatingOperations.add( operationName );
@@ -373,7 +375,7 @@ public class SemanticVerifier implements OLVisitor
 		resolveLazyLinks();
 		checkToBeEqualTypes();
 		checkCorrelationSets();
-		
+
 		if ( configuration.checkForMain && mainDefined == false ) {
 			error( null, "Main procedure not defined" );
 		}
@@ -416,7 +418,7 @@ public class SemanticVerifier implements OLVisitor
 			definedTypes.put( n.id(), n );
 		}
 	}
-	
+
 	@Override
 	public void visit( TypeDefinitionLink n )
 	{
@@ -494,7 +496,7 @@ public class SemanticVerifier implements OLVisitor
 		if ( n.isCSet() && !n.isStatic() ) {
 			error( n, "Correlation paths must be statically defined" );
 		}
-		
+
 		if ( !(n.path().get( 0 ).key() instanceof ConstantStringExpression) ) {
 			if ( n.isGlobal() ) {
 				error( n, "the global keyword in paths must be followed by an identifier" );
@@ -509,12 +511,26 @@ public class SemanticVerifier implements OLVisitor
 	@Override
 	public void visit( final InputPortInfo n )
 	{
+		if ( n.isExternal() ) {
+			error( n, "unresolved external input port '" + n.id() + "'" );
+		}
+
 		if ( inputPorts.get( n.id() ) != null ) {
 			error( n, "input port " + n.id() + " has been already defined" );
 		}
 		inputPorts.put( n.id(), n );
 
 		insideInputPort = true;
+
+		if ( n.location() == null ) {
+			error( n, "expected location URI for " + n.id() );
+		}
+
+		if ( n.protocolId() == null &&
+				( n.location() == null || !n.location().toString().equals( Constants.LOCAL_LOCATION_KEYWORD ) &&
+						!n.location().getScheme().equals( Constants.LOCAL_LOCATION_KEYWORD ) ) ) {
+			error( n, "expected protocol for inputPort " + n.id() );
+		}
 
 		if ( n.operationsMap().isEmpty() && n.redirectionMap().isEmpty() && n.aggregationList().length == 0 ) {
 			error( n, "expected at least one operation, interface, aggregation or " +
@@ -574,10 +590,14 @@ public class SemanticVerifier implements OLVisitor
 
 		insideInputPort = false;
 	}
-	
+
 	@Override
 	public void visit( OutputPortInfo n )
 	{
+		if ( n.isExternal() ) {
+			error( n, "unresolved external output port '" + n.id() + "'" );
+		}
+
 		if ( outputPorts.get( n.id() ) != null )
 			error( n, "output port " + n.id() + " has been already defined" );
 		outputPorts.put( n.id(), n );
@@ -588,7 +608,7 @@ public class SemanticVerifier implements OLVisitor
 			op.accept( this );
 		}
 	}
-		
+
 	@Override
 	public void visit( OneWayOperationDeclaration n )
 	{
@@ -605,7 +625,7 @@ public class SemanticVerifier implements OLVisitor
 			}
 		}
 	}
-		
+
 	@Override
 	public void visit( RequestResponseOperationDeclaration n )
 	{
@@ -638,7 +658,7 @@ public class SemanticVerifier implements OLVisitor
 			error( n, "input operations sharing the same name cannot declare different request types (One-Way operation " + n.id() + ")" );
 		}
 	}
-	
+
 	private void checkEqualness( RequestResponseOperationDeclaration n, RequestResponseOperationDeclaration other )
 	{
 		if ( n.requestType().isEquivalentTo( other.requestType() ) == false ) {
@@ -670,7 +690,7 @@ public class SemanticVerifier implements OLVisitor
 		} else {
 			subroutineNames.add( n.id() );
 		}
-		
+
 		if ( "main".equals( n.id() ) ) {
 			mainDefined = true;
 			if ( executionInfo.mode() != ExecutionMode.SINGLE ) {
@@ -705,7 +725,7 @@ public class SemanticVerifier implements OLVisitor
 		n.body().accept( this );
 		insideInit = false;
 	}
-		
+
 	@Override
 	public void visit( ParallelStatement stm )
 	{
@@ -713,7 +733,7 @@ public class SemanticVerifier implements OLVisitor
 			node.accept( this );
 		}
 	}
-		
+
 	@Override
 	public void visit( SequenceStatement stm )
 	{
@@ -721,7 +741,7 @@ public class SemanticVerifier implements OLVisitor
 			node.accept( this );
 		}
 	}
-		
+
 	@Override
 	public void visit( NDChoiceStatement stm )
 	{
@@ -744,7 +764,7 @@ public class SemanticVerifier implements OLVisitor
 			pair.value().accept( this );
 		}
 	}
-	
+
 	@Override
 	public void visit( NotificationOperationStatement n )
 	{
@@ -757,9 +777,9 @@ public class SemanticVerifier implements OLVisitor
 				error( n, "Operation " + n.id() + " has not been declared in output port type " + p.id() );
 			else if ( !( decl instanceof OneWayOperationDeclaration ) )
 				error( n, "Operation " + n.id() + " is not a valid one-way operation in output port " + p.id() );
-		} 
+		}
 	}
-	
+
 	@Override
 	public void visit( SolicitResponseOperationStatement n )
 	{
@@ -782,7 +802,7 @@ public class SemanticVerifier implements OLVisitor
 			error( n, "Receiving a message in a correlation variable is forbidden" );
 		}*/
 	}
-	
+
 	@Override
 	public void visit( ThrowStatement n )
 	{
@@ -791,7 +811,7 @@ public class SemanticVerifier implements OLVisitor
 
 	@Override
 	public void visit( CompensateStatement n ) {}
-	
+
 	@Override
 	public void visit( InstallStatement n )
 	{
@@ -805,7 +825,7 @@ public class SemanticVerifier implements OLVisitor
 	{
 		n.body().accept( this );
 	}
-	
+
 	@Override
 	public void visit( OneWayOperationStatement n )
 	{
@@ -847,7 +867,7 @@ public class SemanticVerifier implements OLVisitor
 	{
 		n.body().accept( this );
 	}
-		
+
 	@Override
 	public void visit( AssignStatement n )
 	{
@@ -855,7 +875,7 @@ public class SemanticVerifier implements OLVisitor
 		encounteredAssignment( n.variablePath() );
 		n.expression().accept( this );
 	}
-	
+
 	@Override
 	public void visit( InstanceOfExpressionNode n )
 	{
@@ -913,7 +933,7 @@ public class SemanticVerifier implements OLVisitor
 			error( n, "Making an alias to a correlation variable is forbidden" );
 		}
 	}
-	
+
 	@Override
 	public void visit( DeepCopyStatement n )
 	{
@@ -1097,7 +1117,7 @@ public class SemanticVerifier implements OLVisitor
 	{
 		n.variablePath().accept( this );
 	}
-	
+
 	@Override
 	public void visit( InlineTreeExpressionNode n )
 	{
@@ -1146,7 +1166,7 @@ public class SemanticVerifier implements OLVisitor
 		}
 	}
 
-	
+
 	@Override
 	public void visit( ForStatement n )
 	{
@@ -1185,10 +1205,10 @@ public class SemanticVerifier implements OLVisitor
 
 	@Override
 	public void visit( EmbeddedServiceNode n ) {}
-	
+
 	@Override
 	public void visit( InterfaceExtenderDefinition n ) {}
-	
+
 	@Override
 	public void visit( CourierDefinitionNode n )
 	{
@@ -1197,7 +1217,7 @@ public class SemanticVerifier implements OLVisitor
 		}
 		verify( n.body() );
 	}
-	
+
 	@Override
 	public void visit( CourierChoiceStatement n )
 	{
@@ -1205,25 +1225,25 @@ public class SemanticVerifier implements OLVisitor
 			insideCourierOperationType = OperationType.ONE_WAY;
 			verify( branch.body );
 		}
-		
+
 		for( CourierChoiceStatement.InterfaceRequestResponseBranch branch : n.interfaceRequestResponseBranches() ) {
 			insideCourierOperationType = OperationType.REQUEST_RESPONSE;
 			verify( branch.body );
 		}
-		
+
 		for( CourierChoiceStatement.OperationOneWayBranch branch : n.operationOneWayBranches() ) {
 			insideCourierOperationType = OperationType.ONE_WAY;
 			verify( branch.body );
 		}
-		
+
 		for( CourierChoiceStatement.OperationRequestResponseBranch branch : n.operationRequestResponseBranches() ) {
 			insideCourierOperationType = OperationType.REQUEST_RESPONSE;
 			verify( branch.body );
 		}
-		
+
 		insideCourierOperationType = null;
 	}
-	
+
 	/*
 	 * todo: Check that the output port of the forward statement is right wrt the input port aggregation definition.
 	 */
@@ -1236,7 +1256,7 @@ public class SemanticVerifier implements OLVisitor
 			error( n, "forward statement is a notification, but is inside a request-response courier definition. Maybe you wanted to specify a solicit-response forward?" );
 		}
 	}
-	
+
 	/**
 	 * todo: Check that the output port of the forward statement is right wrt the input port aggregation definition.
 	 */
@@ -1249,7 +1269,7 @@ public class SemanticVerifier implements OLVisitor
 			error( n, "forward statement is a solicit-response, but is inside a one-way courier definition. Maybe you wanted to specify a notification forward?" );
 		}
 	}
-	
+
 	/**
 	 * todo: Must check if it's inside an install function
 	 */
@@ -1259,27 +1279,31 @@ public class SemanticVerifier implements OLVisitor
 
 	@Override
 	public void visit( InterfaceDefinition n )
-	{}
-	
+	{
+		if ( n.isExternal() ) {
+			error( n, "unresolved external interface '" + n.name() + "'" );
+		}
+	}
+
 	@Override
 	public void visit( FreshValueExpressionNode n )
 	{}
-	
+
 	@Override
 	public void visit( VoidExpressionNode n ) {}
-	
+
 	@Override
 	public void visit( ProvideUntilStatement n )
-	{	
+	{
 		if ( !( n.provide() instanceof NDChoiceStatement ) ) {
 			error( n, "provide branch is not an input choice" );
 		} else if ( !( n.until() instanceof NDChoiceStatement ) ) {
 			error( n, "until branch is not an input choice" );
 		}
-		
+
 		NDChoiceStatement provide = (NDChoiceStatement) n.provide();
 		NDChoiceStatement until = (NDChoiceStatement) n.until();
-		
+
 		NDChoiceStatement total = new NDChoiceStatement( n.context() );
 		total.children().addAll( provide.children() );
 		total.children().addAll( until.children() );

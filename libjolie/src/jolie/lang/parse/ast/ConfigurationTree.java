@@ -158,7 +158,7 @@ public class ConfigurationTree
 							protocolProperties = defaultPort.getProtocol().getProperties();
 
 						ExternalPort replacement = new ExternalPort( name, type, location,
-								new PortProtocol( protocolType, protocolProperties ) );
+								new PortProtocol( protocolType, protocolProperties ), destinationPort.getContext() );
 						destination.put( name, replacement );
 					}
 				} else {
@@ -241,24 +241,27 @@ public class ConfigurationTree
 		private final String location;
 		private final PortProtocol protocol;
 		private final String embeds;
+		private final ParsingContext context;
 
-		public ExternalPort( String name, PortType type, String embeds )
+		public ExternalPort( String name, PortType type, String embeds, ParsingContext context )
 		{
 			this.name = name;
 			this.type = type;
 			this.embeds = embeds;
+			this.context = context;
 			this.location = null;
 			this.protocol = null;
 
 			assert embeds != null;
 		}
 
-		public ExternalPort( String name, PortType type, String location, PortProtocol protocol )
+		public ExternalPort( String name, PortType type, String location, PortProtocol protocol, ParsingContext context )
 		{
 			this.name = name;
 			this.type = type;
 			this.location = location;
 			this.protocol = protocol;
+			this.context = context;
 			this.embeds = null;
 
 			assert name != null;
@@ -293,6 +296,11 @@ public class ConfigurationTree
 		public boolean isEmbedding()
 		{
 			return embeds != null;
+		}
+
+		public ParsingContext getContext()
+		{
+			return context;
 		}
 
 		@Override

@@ -41,8 +41,7 @@ import java.util.*;
  *
  * @author Dan Sebastian Thrane
  */
-public class Configurator
-{
+public class Configurator {
 	private final JoliePackage thisPackage;
 	private final Program inputProgram;
 	private final String configurationFile;
@@ -202,6 +201,16 @@ public class Configurator
 		List< OLSyntaxNode > result = new ArrayList<>();
 		ConfigurationTree.ExternalPort port = mergedRegion.getOutputPort( n.id() );
 		if ( port != null ) {
+			if ( !n.isExternal() ) {
+				throw new ConfigurationException( String.format(
+						"Attempting to configure non-external output port '%s' defined at %s:%d.\n  " +
+								"Configuration took place at %s:%d",
+						n.id(), n.context().source().toString(), n.context().line(),
+						port.getContext().source().toString(), port.getContext().line()
+				) );
+			}
+
+			n.setExternal( false );
 			if ( port.getLocation() != null ) {
 				n.setLocation( safeParse( port.getLocation() ) );
 			}
@@ -223,8 +232,11 @@ public class Configurator
 					.filter( it -> it.getProfileName().equals( port.getEmbeds() ) )
 					.findAny()
 					.orElseThrow( () ->
-							new ConfigurationException( "Attempting to embed profile " +
-									port.getEmbeds() + ", but could not find profile" ) );
+							new ConfigurationException( String.format(
+									"Attempting to embed profile '%s', but could not find profile.\n  " +
+											"Configuration took place at %s:%d",
+									port.getEmbeds(), port.getContext().source().toString(), port.getContext().line()
+							) ) );
 
 			result.add( new EmbeddedServiceNode(
 					n.context(),
@@ -248,6 +260,15 @@ public class Configurator
 		// Right now, let's assume that if we have values, it means we need to
 		// override existing info.
 		if ( port != null ) {
+			if ( !n.isExternal() ) {
+				throw new ConfigurationException( String.format(
+					"Attempting to configure non-external input port %s defined at %s:%d.\n  " +
+							"Configuration took place at %s:%d",
+						n.id(), n.context().source().toString(), n.context().line(),
+						port.getContext().source().toString(), port.getContext().line()
+				) );
+			}
+
 			URI location = n.location();
 			String protocolId = n.protocolId();
 			OLSyntaxNode properties = n.protocolConfiguration();
@@ -275,6 +296,16 @@ public class Configurator
 	{
 		ConfigurationTree.ExternalInterface iface = mergedRegion.getInterface( n.name() );
 		if ( iface != null ) {
+			if ( !n.isExternal() ) {
+				throw new ConfigurationException( String.format(
+					"Attempting to configure non-external interface %s defined at %s:%d.\n  " +
+							"Configuration took place at %s:%d",
+						n.name(), n.context().source().toString(), n.context().line(),
+						iface.context().source().toString(), iface.context().line()
+				) );
+			}
+
+			n.setExternal( false );
 			List< OLSyntaxNode > result = new ArrayList<>();
 			Program parsed = parsePackage( iface.fromPackage() );
 			InterfaceDefinition target = parsed.children().stream()
@@ -423,8 +454,7 @@ public class Configurator
 		}
 	}
 
-	public static class ConfigurationException extends RuntimeException
-	{
+	public static class ConfigurationException extends RuntimeException {
 		ConfigurationException( String message )
 		{
 			super( message );

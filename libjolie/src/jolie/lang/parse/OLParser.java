@@ -775,7 +775,7 @@ public class OLParser extends AbstractParser
 		return false;
 	}
 
-	private PortInfo parsePort()
+	private PortInfo parsePort( boolean isExternal )
 		throws IOException, ParserException
 	{
 		PortInfo portInfo = null;
@@ -792,6 +792,8 @@ public class OLParser extends AbstractParser
 			eat( Scanner.TokenType.RCURLY, "expected }" );
 			portInfo = p;
 		}
+		assert portInfo != null;
+		portInfo.setExternal( isExternal );
 		return portInfo;
 	}
 
@@ -802,37 +804,56 @@ public class OLParser extends AbstractParser
 		boolean keepRun = true;
 		DocumentedNode node = null;
 		boolean haveDocumentation = false;
+		boolean isExternal = false;
 		while( keepRun ) {
 			if ( token.is( Scanner.TokenType.DOCUMENTATION_COMMENT ) ) {
 				haveDocumentation = true;
 				commentToken = token;
 				getToken();
-			} else if ( token.isKeyword( "interface" ) ) {
-				getToken();
-				if ( token.isKeyword( "extender") ) {
-					getToken();
-					node = parseInterfaceExtender();
-				} else {
-					node = parseInterface();
-				}
-			} else if ( token.isKeyword( "inputPort" ) ) {
-				node = parsePort();
-			} else if ( token.isKeyword( "outputPort" ) ) {
-				node = parsePort();
 			} else {
-				keepRun = false;
-				
-				if ( haveDocumentation ) {
-					addToken( commentToken );
-					addToken( token );
+				if ( token.is( Scanner.TokenType.HASH ) ) {
 					getToken();
+					assertToken( Scanner.TokenType.ID, "expected 'ext" );
+					if ( !token.content().equals( "ext" ) ) throwException( "expected 'ext" );
+					getToken();
+					isExternal = true;
+					if ( !token.isKeyword( "interface" ) && !token.isKeyword( "inputPort" ) &&
+							!token.isKeyword( "outputPort" ) ) {
+						throwException( "Expected 'interface', 'inputPort', or 'outputPort'" );
+					}
+				}
+
+				if ( token.isKeyword( "interface" ) ) {
+					getToken();
+					if ( token.isKeyword( "extender") ) {
+						getToken();
+						if ( isExternal ) {
+							throwException( "interface extenders cannot be external" );
+						}
+						node = parseInterfaceExtender();
+					} else {
+						node = parseInterface(isExternal);
+					}
+				} else if ( token.isKeyword( "inputPort" ) ) {
+					node = parsePort(isExternal);
+				} else if ( token.isKeyword( "outputPort" ) ) {
+					node = parsePort(isExternal);
+				} else {
+					keepRun = false;
+
+					if ( haveDocumentation ) {
+						addToken( commentToken );
+						addToken( token );
+						getToken();
+					}
 				}
 			}
-			
+
 			if ( haveDocumentation && node != null ) {
 				node.setDocumentation( commentToken.content() );
 				haveDocumentation = false;
 				node = null;
+				isExternal = false;
 			}
 		}
     }
@@ -1100,12 +1121,12 @@ public class OLParser extends AbstractParser
 			}
 		}
 		eat( Scanner.TokenType.RCURLY, "} expected" );
-		if ( inputPortLocation == null ) {
-			throwException( "expected location URI for " + inputPortName );
-		} else if ( protocolId == null && !inputPortLocation.toString().equals( Constants.LOCAL_LOCATION_KEYWORD ) && !inputPortLocation.getScheme().equals( Constants.LOCAL_LOCATION_KEYWORD ) ) {
-			throwException( "expected protocol for inputPort " + inputPortName );
-		}
-		InputPortInfo iport = new InputPortInfo( getContext(), inputPortName, inputPortLocation, protocolId, protocolConfiguration, aggregationList.toArray( new InputPortInfo.AggregationItemInfo[ aggregationList.size() ] ), redirectionMap );
+
+		InputPortInfo iport = new InputPortInfo(
+				getContext(), inputPortName, inputPortLocation, protocolId, protocolConfiguration,
+				aggregationList.toArray( new InputPortInfo.AggregationItemInfo[ aggregationList.size() ] ),
+				redirectionMap
+		);
 		for( InterfaceDefinition i : interfaceList ) {
 			iport.addInterface( i );
 		}
@@ -1181,7 +1202,7 @@ public class OLParser extends AbstractParser
 		return extender;
 	}
 
-	private InterfaceDefinition parseInterface()
+	private InterfaceDefinition parseInterface( boolean isExternal )
 		throws IOException, ParserException
 	{
 		String name;
@@ -1191,11 +1212,13 @@ public class OLParser extends AbstractParser
 		getToken();
 		eat( Scanner.TokenType.LCURLY, "expected {" );
 		iface = new InterfaceDefinition( getContext(), name );
-		parseOperations( iface );
+		iface.setExternal( isExternal );
+		if ( !isExternal ) { // Do not allow operations on external interfaces
+			parseOperations( iface );
+		}
 		interfaces.put( name, iface );
 		program.addChild( iface );
 		eat( Scanner.TokenType.RCURLY, "expected }" );
-
 		return iface;
 	}
 

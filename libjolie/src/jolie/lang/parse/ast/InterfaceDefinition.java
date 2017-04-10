@@ -37,6 +37,7 @@ public class InterfaceDefinition extends OLSyntaxNode implements OperationCollec
 		new HashMap<>();
 	private final String name;
 	private String documentation;
+	private boolean isExternal = false;
 
 	public InterfaceDefinition( ParsingContext context, String name )
 	{
@@ -82,5 +83,15 @@ public class InterfaceDefinition extends OLSyntaxNode implements OperationCollec
 	public String getDocumentation()
 	{
 		return this.documentation;
+	}
+
+	public boolean isExternal()
+	{
+		return isExternal;
+	}
+
+	public void setExternal( boolean external )
+	{
+		isExternal = external;
 	}
 }

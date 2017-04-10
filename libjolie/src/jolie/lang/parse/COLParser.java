@@ -214,6 +214,7 @@ public class COLParser extends AbstractParser
 		String location = null;
 		String protocolType = null;
 		OLSyntaxNode protocolProperties = null;
+		ParsingContext context = getContext();
 
 		boolean isInputPort = token.isKeyword( INPUT_PORT );
 		type = isInputPort ? ConfigurationTree.PortType.INPUT : ConfigurationTree.PortType.OUTPUT;
@@ -233,7 +234,7 @@ public class COLParser extends AbstractParser
 			assertToken( STRING, "expected embedding name" );
 			String embeds = token.content();
 			getToken();
-			return new ExternalPort( name, type, embeds );
+			return new ExternalPort( name, type, embeds, getContext() );
 		} else if ( token.type() == LCURLY ) {
 			getToken();
 
@@ -264,7 +265,8 @@ public class COLParser extends AbstractParser
 			assertToken( RCURLY, "expected end of port body" );
 			getToken();
 
-			return new ExternalPort( name, type, location, new PortProtocol( protocolType, protocolProperties ) );
+			return new ExternalPort( name, type, location, new PortProtocol( protocolType, protocolProperties ),
+					context );
 		} else {
 			throwException( "expected port body" );
 			return null;

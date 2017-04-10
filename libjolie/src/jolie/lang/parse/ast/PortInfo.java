@@ -41,6 +41,7 @@ public abstract class PortInfo extends OLSyntaxNode implements OperationCollecto
 		new HashMap<> ();
 	private final List< InterfaceDefinition > interfaceList = new ArrayList<>();
 	private String document;
+	private boolean isExternal = false;
 
 	public PortInfo( ParsingContext context, String id )
 	{
@@ -106,5 +107,15 @@ public abstract class PortInfo extends OLSyntaxNode implements OperationCollecto
 	public void addInterface( InterfaceDefinition iface )
 	{
 		interfaceList.add( iface );
+	}
+
+	public boolean isExternal()
+	{
+		return isExternal;
+	}
+
+	public void setExternal( boolean external )
+	{
+		isExternal = external;
 	}
 }
