@@ -184,6 +184,7 @@ public class OLParseTreeOptimizer
 								p.aggregationList(),
 								p.redirectionMap()
 						);
+				iport.setExternal( p.isExternal() );
 				iport.operationsMap().putAll( p.operationsMap() );
 				iport.getInterfaceList().addAll( p.getInterfaceList() );
 				program.addChild( iport );

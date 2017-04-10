@@ -285,8 +285,14 @@ public class Configurator
 				}
 			}
 
-			result.add( new InputPortInfo( n.context(), n.id(), location, protocolId, properties,
-					n.aggregationList(), n.redirectionMap() ) );
+			InputPortInfo newPort = new InputPortInfo( n.context(), n.id(), location, protocolId, properties,
+					n.aggregationList(), n.redirectionMap() );
+
+			// Copy over interfaces and operations
+			n.getInterfaceList().forEach( newPort::addInterface );
+			newPort.operationsMap().putAll( n.operationsMap() );
+
+			result.add( newPort );
 		} else {
 			result.add( n );
 		}

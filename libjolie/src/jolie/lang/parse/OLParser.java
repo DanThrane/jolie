@@ -141,6 +141,7 @@ public class OLParser extends AbstractParser
 	private final ClassLoader classLoader;
 
 	private InterfaceExtenderDefinition currInterfaceExtender = null;
+	private Set< URI > includeFiles = new HashSet<>();
 
 	public OLParser( Scanner scanner, String[] includePaths, ClassLoader classLoader )
 	{
@@ -710,25 +711,30 @@ public class OLParser extends AbstractParser
 					}
 				}
 			}
-			// When we switch scanner the old next token is erased. We will have to save it here, such that we can
-			// continue at the correct token.
-			Scanner.Token nextToken = token;
 
-			origIncludePaths = includePaths;
-			// includes are explicitly parsed in ASCII to be independent of program's encoding
-			setScanner( new Scanner( includeFile.getInputStream(), includeFile.getURI(), "US-ASCII" ) );
-			
-			if ( includeFile.getParentPath() == null ) {
-				includePaths = Arrays.copyOf( origIncludePaths, origIncludePaths.length );
-			} else {
-				includePaths = Arrays.copyOf( origIncludePaths, origIncludePaths.length + 1 );
-				includePaths[ origIncludePaths.length ] = includeFile.getParentPath();
+			assert includeFile != null;
+			if ( !includeFiles.contains( includeFile.getURI() ) ) {
+				// When we switch scanner the old next token is erased. We will have to save it here, such that we can
+				// continue at the correct token.
+				Scanner.Token nextToken = token;
+
+				origIncludePaths = includePaths;
+				// includes are explicitly parsed in ASCII to be independent of program's encoding
+				setScanner( new Scanner( includeFile.getInputStream(), includeFile.getURI(), "US-ASCII" ) );
+
+				if ( includeFile.getParentPath() == null ) {
+					includePaths = Arrays.copyOf( origIncludePaths, origIncludePaths.length );
+				} else {
+					includePaths = Arrays.copyOf( origIncludePaths, origIncludePaths.length + 1 );
+					includePaths[ origIncludePaths.length ] = includeFile.getParentPath();
+				}
+				_parse();
+				includePaths = origIncludePaths;
+				includeFile.getInputStream().close();
+				setScanner( oldScanner );
+				token = nextToken;
+				includeFiles.add( includeFile.getURI() );
 			}
-			_parse();
-			includePaths = origIncludePaths;
-			includeFile.getInputStream().close();
-			setScanner( oldScanner );
-			token = nextToken;
 		}
 	}
 
@@ -804,13 +810,13 @@ public class OLParser extends AbstractParser
 		boolean keepRun = true;
 		DocumentedNode node = null;
 		boolean haveDocumentation = false;
-		boolean isExternal = false;
 		while( keepRun ) {
 			if ( token.is( Scanner.TokenType.DOCUMENTATION_COMMENT ) ) {
 				haveDocumentation = true;
 				commentToken = token;
 				getToken();
 			} else {
+				boolean isExternal = false;
 				if ( token.is( Scanner.TokenType.HASH ) ) {
 					getToken();
 					assertToken( Scanner.TokenType.ID, "expected 'ext" );
@@ -853,7 +859,6 @@ public class OLParser extends AbstractParser
 				node.setDocumentation( commentToken.content() );
 				haveDocumentation = false;
 				node = null;
-				isExternal = false;
 			}
 		}
     }
