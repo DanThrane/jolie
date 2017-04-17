@@ -532,6 +532,15 @@ public class CommandLineParser implements Closeable
 								"  The following packages are known: " + knownPackages.keySet().toString() );
 					}
 
+					if ( pack.getEntryPoint() == null ) {
+						throw new CommandLineException( String.format(
+								"Attempting to start program from package (%s). " +
+										"This package has no entry-point defined!\n  "  +
+										"Package name: '%s'. Package root: '%s'",
+								pack.getName(), pack.getName(), pack.getRoot()
+						) );
+					}
+
 					thisPackage = pack.getName();
 					programDirectory = new File( pack.getRoot() );
 					olFilepath = new File( programDirectory, pack.getEntryPoint() ).getAbsolutePath();

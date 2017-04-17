@@ -53,6 +53,7 @@ public class Configurator
 	private final Map< String, JoliePackage > knownPackages;
 	private ConfigurationTree.Region mergedRegion;
 	private ConfigurationTree inputTree;
+	private File origConfigFile;
 
 	public Configurator( Program program, String thisPackageName, Map< String, JoliePackage > knownPackages,
 						 String configurationFile, String configurationProfile, String[] includePaths,
@@ -117,6 +118,7 @@ public class Configurator
 				File root = new File( parentPackage.getRoot() );
 				configFile = new File( root, configurationFile );
 			}
+			origConfigFile = configFile;
 			COLParser parser = new COLParser(
 					new Scanner( new FileInputStream( configFile ), configFile.toURI(), "US-ASCII" ),
 					configFile.getParentFile()
@@ -250,7 +252,8 @@ public class Configurator
 					Constants.EmbeddedServiceType.JOLIE,
 					String.format( "--conf %s %s %s.pkg",
 							port.getEmbeds(),
-							new File( thisPackage.getRoot(), configurationFile).getAbsolutePath(),
+							origConfigFile != null ? origConfigFile.getAbsolutePath() :
+									new File( thisPackage.getRoot(), configurationFile).getAbsolutePath(),
 							region.getPackageName()
 					),
 					n.id()
