@@ -136,6 +136,7 @@ public class OLParser extends AbstractParser
 	private final Map< String, InterfaceDefinition > interfaces = new HashMap<>();
 	private final Map< String, InterfaceExtenderDefinition > interfaceExtenders = new HashMap<>();
 	private final Map< String, JoliePackage > knownPackages = new HashMap<>(  );
+	private final Deque< String > packageStack = new LinkedList<>();
 
 	private final Map< String, TypeDefinition > definedTypes;
 	private final ClassLoader classLoader;
@@ -671,6 +672,7 @@ public class OLParser extends AbstractParser
 		String[] origIncludePaths;
 		IncludeFile includeFile;
 		while ( token.is( Scanner.TokenType.INCLUDE ) ) {
+			boolean isPackageInclude = false;
 			getToken();
 			Scanner oldScanner = scanner();
 			assertToken( Scanner.TokenType.STRING, "expected filename to include" );
@@ -678,6 +680,7 @@ public class OLParser extends AbstractParser
 			getToken();
 
 			if ( token.is( Scanner.TokenType.FROM ) ) {
+				isPackageInclude = true;
 				getToken();
 				assertToken( Scanner.TokenType.STRING, "expected package to include from" );
 				String packageName = token.content();
@@ -689,6 +692,7 @@ public class OLParser extends AbstractParser
 				}
 				includeFile = findPackageInclude( joliePackage, includeStr );
 				getToken();
+				packageStack.addFirst( packageName );
 
 				if ( includeFile == null ) {
 					throwException( "Could not find '" + includeStr + "' in package '" + joliePackage.getName() + "'" );
@@ -696,7 +700,14 @@ public class OLParser extends AbstractParser
 			} else {
 				includeFile = null;
 
-				if ( oldScanner.source().getScheme().equals( "file" ) ) {
+				if ( !packageStack.isEmpty() ) {
+					String packageName = packageStack.peekFirst();
+					JoliePackage joliePackage = knownPackages.get( packageName );
+					assert joliePackage != null;
+					includeFile = findPackageInclude( joliePackage, includeStr );
+				}
+
+				if ( includeFile == null && oldScanner.source().getScheme().equals( "file" ) ) {
 					includeFile = retrieveIncludeFile( new File( oldScanner.source() ).getParent(), includeStr );
 				}
 
@@ -735,12 +746,19 @@ public class OLParser extends AbstractParser
 				token = nextToken;
 				includeFiles.add( includeFile.getURI() );
 			}
+
+			if ( isPackageInclude ) {
+				packageStack.pop();
+			}
 		}
 	}
 
 	private IncludeFile findPackageInclude( JoliePackage joliePackage, String includeString )
 			throws ParserException, FileNotFoundException
 	{
+		// TODO The files we include should be able to include the correct files from include after that.
+		// Currently doesn't work
+
 		Objects.requireNonNull( joliePackage );
 		Objects.requireNonNull( includeString );
 
