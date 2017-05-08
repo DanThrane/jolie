@@ -42,65 +42,8 @@ import jolie.lang.parse.CorrelationFunctionInfo.CorrelationPairInfo;
 import jolie.lang.parse.OLParser;
 import jolie.lang.parse.OLVisitor;
 import jolie.lang.parse.Scanner;
-import jolie.lang.parse.ast.AddAssignStatement;
-import jolie.lang.parse.ast.AssignStatement;
-import jolie.lang.parse.ast.CompareConditionNode;
-import jolie.lang.parse.ast.CompensateStatement;
-import jolie.lang.parse.ast.CorrelationSetInfo;
+import jolie.lang.parse.ast.*;
 import jolie.lang.parse.ast.CorrelationSetInfo.CorrelationVariableInfo;
-import jolie.lang.parse.ast.CurrentHandlerStatement;
-import jolie.lang.parse.ast.DeepCopyStatement;
-import jolie.lang.parse.ast.DefinitionCallStatement;
-import jolie.lang.parse.ast.DefinitionNode;
-import jolie.lang.parse.ast.DivideAssignStatement;
-import jolie.lang.parse.ast.DocumentationComment;
-import jolie.lang.parse.ast.EmbeddedServiceNode;
-import jolie.lang.parse.ast.ExecutionInfo;
-import jolie.lang.parse.ast.ExitStatement;
-import jolie.lang.parse.ast.ForEachArrayItemStatement;
-import jolie.lang.parse.ast.ForEachSubNodeStatement;
-import jolie.lang.parse.ast.ForStatement;
-import jolie.lang.parse.ast.IfStatement;
-import jolie.lang.parse.ast.InputPortInfo;
-import jolie.lang.parse.ast.InstallFixedVariableExpressionNode;
-import jolie.lang.parse.ast.InstallFunctionNode;
-import jolie.lang.parse.ast.InstallStatement;
-import jolie.lang.parse.ast.InterfaceDefinition;
-import jolie.lang.parse.ast.InterfaceExtenderDefinition;
-import jolie.lang.parse.ast.LinkInStatement;
-import jolie.lang.parse.ast.LinkOutStatement;
-import jolie.lang.parse.ast.MultiplyAssignStatement;
-import jolie.lang.parse.ast.NDChoiceStatement;
-import jolie.lang.parse.ast.NotificationOperationStatement;
-import jolie.lang.parse.ast.NullProcessStatement;
-import jolie.lang.parse.ast.OLSyntaxNode;
-import jolie.lang.parse.ast.OneWayOperationDeclaration;
-import jolie.lang.parse.ast.OneWayOperationStatement;
-import jolie.lang.parse.ast.OperationDeclaration;
-import jolie.lang.parse.ast.OutputPortInfo;
-import jolie.lang.parse.ast.ParallelStatement;
-import jolie.lang.parse.ast.PointerStatement;
-import jolie.lang.parse.ast.PostDecrementStatement;
-import jolie.lang.parse.ast.PostIncrementStatement;
-import jolie.lang.parse.ast.PreDecrementStatement;
-import jolie.lang.parse.ast.PreIncrementStatement;
-import jolie.lang.parse.ast.Program;
-import jolie.lang.parse.ast.ProvideUntilStatement;
-import jolie.lang.parse.ast.RequestResponseOperationDeclaration;
-import jolie.lang.parse.ast.RequestResponseOperationStatement;
-import jolie.lang.parse.ast.RunStatement;
-import jolie.lang.parse.ast.Scope;
-import jolie.lang.parse.ast.SequenceStatement;
-import jolie.lang.parse.ast.SolicitResponseOperationStatement;
-import jolie.lang.parse.ast.SpawnStatement;
-import jolie.lang.parse.ast.SubtractAssignStatement;
-import jolie.lang.parse.ast.SynchronizedStatement;
-import jolie.lang.parse.ast.ThrowStatement;
-import jolie.lang.parse.ast.TypeCastExpressionNode;
-import jolie.lang.parse.ast.UndefStatement;
-import jolie.lang.parse.ast.ValueVectorSizeExpressionNode;
-import jolie.lang.parse.ast.VariablePathNode;
-import jolie.lang.parse.ast.WhileStatement;
 import jolie.lang.parse.ast.courier.CourierChoiceStatement;
 import jolie.lang.parse.ast.courier.CourierDefinitionNode;
 import jolie.lang.parse.ast.courier.NotificationForwardStatement;
@@ -626,8 +569,8 @@ public class OOITBuilder implements OLVisitor
 
 	private Process currProcess;
 	private Expression currExpression;
-	private Type currType;
-	boolean insideType = false;
+	//private Type currType;
+	//boolean insideType = false;
 	
 	private final Map< String, Type > types = new HashMap< String, Type >();
 	private final Map< String, Map< String, OneWayTypeDescription > > notificationTypes =
@@ -637,42 +580,10 @@ public class OOITBuilder implements OLVisitor
 
 	public void visit( TypeInlineDefinition n )
 	{
-		boolean backupInsideType = insideType;
-		insideType = true;
-
-		if ( n.untypedSubTypes() ) {
-			currType = Type.create( n.nativeType(), n.cardinality(), true, null );
-		} else {
-			Map< String, Type > subTypes = new HashMap< String, Type >();
-			if ( n.subTypes() != null ) {
-				for( Entry< String, TypeDefinition > entry : n.subTypes() ) {
-					subTypes.put( entry.getKey(), buildType( entry.getValue() ) );
-				}
-			}
-			currType = Type.create(
-				n.nativeType(),
-				n.cardinality(),
-				false,
-				subTypes
-			);
-		}
-
-		insideType = backupInsideType;
-
-		if ( insideType == false && insideOperationDeclaration == false ) {
-			types.put( n.id(), currType );
-		}
 	}
 
 	public void visit( TypeDefinitionLink n )
 	{
-		Type.TypeLink link = Type.createLink( n.linkedTypeName(), n.cardinality() );
-		currType = link;
-		typeLinks.add( new Pair<>( link, n ) );
-
-		if ( insideType == false && insideOperationDeclaration == false ) {
-			types.put( n.id(), currType );
-		}
 	}
 
 	public void visit( Program p )
@@ -688,12 +599,10 @@ public class OOITBuilder implements OLVisitor
 		if ( decl == null ) {
 			return null;
 		}
-		
-		if ( currentOutputPort == null ) { // We are in an input port (TODO: why does this matter? junk code?)
-			return new OneWayTypeDescription( types.get( decl.requestType().id() ) );
-		} else {
-			return new OneWayTypeDescription( buildType( decl.requestType() ) );
-		}
+
+		Type type = types.get( decl.requestType() );
+		if (type == null) error( decl.context(), "invalid type: " + decl.requestType() );
+		return new OneWayTypeDescription( type );
 	}
 	
 	private RequestResponseTypeDescription buildRequestResponseTypeDescription( RequestResponseOperationDeclaration decl )
@@ -702,28 +611,22 @@ public class OOITBuilder implements OLVisitor
 			return null;
 		}
 		
-		RequestResponseTypeDescription typeDescription;
 		Map< String, Type > faults = new HashMap< String, Type >();
-		if ( currentOutputPort == null ) { // We are in an input port (TODO: why does this matter? junk code?)
-			for( Entry< String, TypeDefinition > entry : decl.faults().entrySet() ) {
-				faults.put( entry.getKey(), types.get( entry.getValue().id() ) );
-			}
-			typeDescription = new RequestResponseTypeDescription(
-				types.get( decl.requestType().id() ),
-				types.get( decl.responseType().id() ),
-				faults
-			);
-		} else {
-			for( Entry< String, TypeDefinition > entry : decl.faults().entrySet() ) {
-				faults.put( entry.getKey(), types.get( entry.getValue().id() ) );
-			}
-			typeDescription = new RequestResponseTypeDescription(
-				buildType( decl.requestType() ),
-				buildType( decl.responseType() ),
-				faults
-			);
+
+		Type requestType = types.get( decl.requestType() );
+		Type responseType = types.get( decl.responseType() );
+		if ( requestType == null ) error( decl.context(), "invalid type: " + decl.requestType() );
+		if ( responseType == null ) error( decl.context(), "invalid type: " + decl.responseType() );
+
+		for( Entry< String, TypeDefinition > entry : decl.faults().entrySet() ) {
+			faults.put( entry.getKey(), types.get( entry.getValue().id() ) );
 		}
-		return typeDescription;
+
+		return new RequestResponseTypeDescription(
+			requestType,
+			responseType,
+			faults
+		);
 	}
 
 	public void visit( OneWayOperationDeclaration decl )
@@ -737,7 +640,7 @@ public class OOITBuilder implements OLVisitor
 			try {
 				interpreter.getOneWayOperation( decl.id() );
 			} catch( InvalidIdException e ) {
-				interpreter.register( decl.id(), new OneWayOperation( decl.id(), types.get( decl.requestType().id() ) ) );
+				interpreter.register( decl.id(), new OneWayOperation( decl.id(), types.get( decl.requestType() ) ) );
 			}
 		} else {
 			typeDescription = buildOneWayTypeDescription( decl );
@@ -1380,7 +1283,9 @@ public class OOITBuilder implements OLVisitor
 	
 	public void visit( InstanceOfExpressionNode n )
 	{
-		currExpression = new InstanceOfExpression( buildExpression( n.expression() ), buildType( n.type() ) );
+		Type type = types.get( n.type() );
+		if (type == null) error( n.context(), "invalid type: " + n.type() );
+		currExpression = new InstanceOfExpression( buildExpression( n.expression() ), type );
 	}
 	
 	public void visit( TypeCastExpressionNode n )
@@ -1470,15 +1375,6 @@ public class OOITBuilder implements OLVisitor
 		}
 		n.accept( this );
 		return currProcess;
-	}
-
-	private Type buildType( OLSyntaxNode n )
-	{
-		if ( n == null ) {
-			return null;
-		}
-		n.accept( this );
-		return currType;
 	}
 
 	public void visit( SpawnStatement n )
@@ -1685,17 +1581,15 @@ public class OOITBuilder implements OLVisitor
 	@Override
 	public void visit( TypeChoiceDefinition n )
 	{
-		final boolean wasInsideType = insideType;
-		insideType = true;
-		
-		currType = Type.createChoice( n.cardinality(), buildType( n.left() ), buildType( n.right() ) );
-		
-		insideType = wasInsideType;		
-		if ( insideType == false && insideOperationDeclaration == false ) {
-			types.put( n.id(), currType );
-		}
 	}
 
+	@Override
+	public void visit( ParameterDefinition n )
+	{
+
+	}
+
+	@Override
 	public void visit( SolicitResponseForwardStatement n )
 	{
 		AggregationConfiguration conf = getAggregationConfiguration( currCourierInputPort.name(), currCourierOperationName );

@@ -4,6 +4,7 @@ import jolie.lang.parse.context.ParsingContext;
 
 import java.util.*;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 public class ConfigurationTree
 {
@@ -34,7 +35,7 @@ public class ConfigurationTree
 		private final Map< String, ExternalPort > inports = new HashMap<>();
 		private final Map< String, ExternalPort > outports = new HashMap<>();
 		private final Map< String, ExternalInterface > interfaces = new HashMap<>();
-		private final Map< String, ExternalConstantNode > constants = new HashMap<>();
+		private final Map< String, List< ExternalParamNode > > parameters = new HashMap<>();
 
 		public String getProfileName()
 		{
@@ -70,9 +71,11 @@ public class ConfigurationTree
 			interfaces.put( iface.name(), iface );
 		}
 
-		public void addConstant( ExternalConstantNode constant )
+		public void addParameter( ExternalParamNode node )
 		{
-			constants.put( constant.name(), constant );
+			List< ExternalParamNode > assigns = parameters.getOrDefault( node.name(), new ArrayList<>() );
+			assigns.add( node );
+			parameters.put( node.name(), assigns );
 		}
 
 		public ExternalPort getInputPort( String name )
@@ -90,9 +93,9 @@ public class ConfigurationTree
 			return interfaces.get( name );
 		}
 
-		public Collection< ExternalConstantNode > getConstants()
+		public List< ExternalParamNode > getParameters()
 		{
-			return Collections.unmodifiableCollection( constants.values() );
+			return parameters.values().stream().flatMap( List::stream ).collect( Collectors.toList() );
 		}
 
 		public static Region merge( Region region, Region defaultRegion )
@@ -108,16 +111,8 @@ public class ConfigurationTree
 			Map< String, ExternalPort > outports = new HashMap<>();
 			region.inports.values().forEach( it -> inports.put( it.getName(), it ) );
 			region.outports.values().forEach( it -> outports.put( it.getName(), it ) );
-			defaultRegion.inports.values().forEach( processPorts(inports) );
-			defaultRegion.outports.values().forEach( processPorts(outports) );
-
-			Map< String, ExternalConstantNode > constants = new HashMap<>();
-			region.constants.values().forEach( it -> constants.put( it.name(), it ) );
-			defaultRegion.constants.values().forEach( it -> {
-				if ( !constants.containsKey( it.name() ) ) {
-					constants.put( it.name(), it );
-				}
-			} );
+			defaultRegion.inports.values().forEach( processPorts( inports ) );
+			defaultRegion.outports.values().forEach( processPorts( outports ) );
 
 			Map< String, ExternalInterface > interfaces = new HashMap<>();
 			region.interfaces.values().forEach( it -> interfaces.put( it.name(), it ) );
@@ -132,7 +127,18 @@ public class ConfigurationTree
 			result.setProfileName( profileName );
 			inports.values().forEach( result::addPort );
 			outports.values().forEach( result::addPort );
-			constants.values().forEach( result::addConstant );
+
+			for ( List< ExternalParamNode > assigns : defaultRegion.parameters.values() ) {
+				for ( ExternalParamNode node : assigns ) {
+					result.addParameter( node );
+				}
+			}
+
+			for ( List< ExternalParamNode > assigns : region.parameters.values() ) {
+				for ( ExternalParamNode node : assigns ) {
+					result.addParameter( node );
+				}
+			}
 			interfaces.values().forEach( result::addInterface );
 			return result;
 		}
@@ -205,13 +211,13 @@ public class ConfigurationTree
 		}
 	}
 
-	public static class ExternalConstantNode
+	public static class ExternalParamNode
 	{
 		private final ParsingContext context;
 		private final String name;
 		private final OLSyntaxNode expressionNode;
 
-		public ExternalConstantNode( ParsingContext context, String name, OLSyntaxNode expressionNode )
+		public ExternalParamNode( ParsingContext context, String name, OLSyntaxNode expressionNode )
 		{
 			this.context = context;
 			this.name = name;

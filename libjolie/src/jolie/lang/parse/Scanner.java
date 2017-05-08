@@ -130,6 +130,7 @@ public class Scanner
 		INIT,				///< init
 		PROVIDE,			///< provide
 		FROM,			    ///< from
+		PARAMETERS,			    ///< parameters
 		PROFILE,			///< profile
 		CONFIGURES,			///< configures
 		EMBEDS,				///< configures
@@ -187,6 +188,7 @@ public class Scanner
 		unreservedKeywords.put( "false", TokenType.FALSE );
 		unreservedKeywords.put( "provide", TokenType.PROVIDE );
 		unreservedKeywords.put( "from", TokenType.FROM );
+		unreservedKeywords.put( "parameters", TokenType.PARAMETERS );
 		unreservedKeywords.put( "profile", TokenType.PROFILE );
 		unreservedKeywords.put( "configures", TokenType.CONFIGURES );
 		unreservedKeywords.put( "embeds", TokenType.EMBEDS );

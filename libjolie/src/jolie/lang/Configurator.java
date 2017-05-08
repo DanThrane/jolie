@@ -171,7 +171,7 @@ public class Configurator
 			nodes.forEach( output::addChild );
 		}
 
-		if ( oldInitBody != null || !mergedRegion.getConstants().isEmpty() ) {
+		if ( oldInitBody != null || !mergedRegion.getParameters().isEmpty() ) {
 			SequenceStatement initBody = new SequenceStatement( n.context() );
 			output.addChild( new DefinitionNode( n.context(), "init", initBody ) );
 
@@ -187,7 +187,7 @@ public class Configurator
 	private List< OLSyntaxNode > createParameterInitialization()
 	{
 		List< OLSyntaxNode > result = new ArrayList<>();
-		for ( ConfigurationTree.ExternalConstantNode node : mergedRegion.getConstants() ) {
+		for ( ConfigurationTree.ExternalParamNode node : mergedRegion.getParameters() ) {
 			result.add( new DeepCopyStatement(
 					node.context(),
 					buildParamsPath( node.context(), node.name() ),

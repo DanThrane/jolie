@@ -172,7 +172,7 @@ public class COLParser extends AbstractParser
 		} else if ( token.isKeyword( INTERFACE ) ) {
 			currentRegion.addInterface( parseInterface() );
 		} else {
-			currentRegion.addConstant( parseConstantDefinition() );
+			currentRegion.addParameter( parseConstantDefinition() );
 		}
 	}
 
@@ -196,7 +196,7 @@ public class COLParser extends AbstractParser
 		return new ConfigurationTree.ExternalInterface( context, name, realName, packageName );
 	}
 
-	private ConfigurationTree.ExternalConstantNode parseConstantDefinition() throws ParserException, IOException
+	private ConfigurationTree.ExternalParamNode parseConstantDefinition() throws ParserException, IOException
 	{
 		assertToken( ID, "expected identifier for beginning of constant definition" );
 		String name = token.content();
@@ -204,7 +204,7 @@ public class COLParser extends AbstractParser
 		assertToken( ASSIGN, "expected '=' in constant definition" );
 		getToken();
 		OLSyntaxNode value = parseConstantValue();
-		return new ConfigurationTree.ExternalConstantNode( getContext(), name, value );
+		return new ConfigurationTree.ExternalParamNode( getContext(), name, value );
 	}
 
 	private ExternalPort parsePort() throws ParserException, IOException
