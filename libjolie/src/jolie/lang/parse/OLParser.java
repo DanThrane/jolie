@@ -1014,6 +1014,7 @@ public class OLParser extends AbstractParser
 		URI inputPortLocation;
 		List< InterfaceDefinition > interfaceList = new ArrayList<>();
 		OLSyntaxNode protocolConfiguration = new NullProcessStatement( getContext() );
+		ParsingContext inputPortContext = getContext();
 
 		getToken();
 		assertToken( Scanner.TokenType.ID, "expected inputPort name" );
@@ -1116,7 +1117,7 @@ public class OLParser extends AbstractParser
 		eat( Scanner.TokenType.RCURLY, "} expected" );
 
 		InputPortInfo iport = new InputPortInfo(
-				getContext(), inputPortName, inputPortLocation, protocolId, protocolConfiguration,
+				inputPortContext, inputPortName, inputPortLocation, protocolId, protocolConfiguration,
 				aggregationList.toArray( new InputPortInfo.AggregationItemInfo[ aggregationList.size() ] ),
 				redirectionMap
 		);

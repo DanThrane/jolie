@@ -207,10 +207,30 @@ public class Configurator
 			}
 
 			if ( port.getLocation() != null ) {
+				if ( n.location() != null ) {
+					throw new ConfigurationException( String.format(
+							"Attempting to override location of static output port (%s)\n" +
+									"Port defined at %s:%d\n" +
+									"Configuration took place at %s:%d",
+							n.id(),
+							n.context().sourceName(), n.context().line(),
+							port.getContext().sourceName(), port.getContext().line()
+					) );
+				}
 				n.setLocation( safeParse( port.getLocation() ) );
 			}
 
 			if ( port.getProtocol() != null && port.getProtocol().getType() != null ) {
+				if ( n.protocolId() != null ) {
+					throw new ConfigurationException( String.format(
+							"Attempting to override protocol definition of static output port (%s).\n" +
+									"Port defined at %s:%d.\n" +
+									"Configuration took place at %s:%d",
+							n.id(),
+							n.context().sourceName(), n.context().line(),
+							port.getContext().sourceName(), port.getContext().line()
+					) );
+				}
 				n.setProtocolId( port.getProtocol().getType() );
 
 				if ( port.getProtocol().getProperties() != null ) {
@@ -223,6 +243,17 @@ public class Configurator
 
 		// Embedding needs to go after the port in the AST
 		if ( port != null && port.isEmbedding() ) {
+			if ( n.location() != null ) {
+				throw new ConfigurationException( String.format(
+						"Attempting to override location of static output port (%s)\n" +
+								"Port defined at %s:%d\n" +
+								"Configuration took place at %s:%d",
+						n.id(),
+						n.context().sourceName(), n.context().line(),
+						port.getContext().sourceName(), port.getContext().line()
+				) );
+			}
+
 			Region region = null;
 			Map< String, Region > namespaced = inputTree.getRegions().get( port.getModule() );
 
@@ -264,10 +295,30 @@ public class Configurator
 			String protocolId = n.protocolId();
 			OLSyntaxNode properties = n.protocolConfiguration();
 			if ( port.getLocation() != null ) {
+				if ( location != null ) {
+					throw new ConfigurationException( String.format(
+							"Attempting to override location of static input port (%s)\n" +
+									"Port defined at %s:%d\n" +
+									"Configuration took place at %s:%d",
+							n.id(),
+							n.context().sourceName(), n.context().line(),
+							port.getContext().sourceName(), port.getContext().line()
+					) );
+				}
 				location = safeParse( port.getLocation() );
 			}
 
 			if ( port.getProtocol() != null && port.getProtocol().getType() != null ) {
+				if ( protocolId != null ) {
+					throw new ConfigurationException( String.format(
+							"Attempting to override protocol definition of static input port (%s).\n" +
+									"Port defined at %s:%d.\n" +
+									"Configuration took place at %s:%d",
+							n.id(),
+							n.context().sourceName(), n.context().line(),
+							port.getContext().sourceName(), port.getContext().line()
+					) );
+				}
 				protocolId = port.getProtocol().getType();
 
 				if ( port.getProtocol().getProperties() != null ) {

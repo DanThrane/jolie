@@ -321,7 +321,7 @@ public class COLParser extends AbstractParser
 			assertToken( STRING, "expected embedding name" );
 			String embeds = token.content();
 			getToken();
-			return new ExternalPort( name, type, embeds, module, getContext() );
+			return new ExternalPort( name, type, embeds, module, context );
 		} else if ( token.type() == LCURLY ) {
 			getToken();
 
