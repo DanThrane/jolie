@@ -165,7 +165,7 @@ public class COLParser extends AbstractParser
 			Region existing = configurationTree.getRegion( region.getPackageName(), region.getProfileName() );
 			if ( existing != null ) {
 				throw new ParserException( region.getContext(), String.format(
-					"Attempting to redefine configuration unit '%s' of '%s', first defined at %s:%d",
+						"Attempting to redefine configuration unit '%s' of '%s', first defined at %s:%d",
 						region.getProfileName(),
 						region.getPackageName(),
 						existing.getContext().sourceName(), existing.getContext().line()
@@ -283,13 +283,11 @@ public class COLParser extends AbstractParser
 
 	private ConfigurationTree.ExternalParamNode parseConstantDefinition() throws ParserException, IOException
 	{
-		assertToken( ID, "expected identifier for beginning of constant definition" );
-		String name = token.content();
-		getToken();
+		VariablePathNode path = parseVariablePath();
 		assertToken( ASSIGN, "expected '=' in constant definition" );
 		getToken();
 		OLSyntaxNode value = parseConstantValue();
-		return new ConfigurationTree.ExternalParamNode( getContext(), name, value );
+		return new ConfigurationTree.ExternalParamNode( getContext(), path, value );
 	}
 
 	private ExternalPort parsePort() throws ParserException, IOException

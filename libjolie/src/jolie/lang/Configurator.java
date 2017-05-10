@@ -188,18 +188,11 @@ public class Configurator
 		for ( ConfigurationTree.ExternalParamNode node : mergedRegion.getParameters() ) {
 			result.add( new DeepCopyStatement(
 					node.context(),
-					buildParamsPath( node.context(), node.name() ),
+					node.path(),
 					node.expressionNode()
 			) );
 		}
 		return result;
-	}
-
-	private VariablePathNode buildParamsPath( ParsingContext context, String destination )
-	{
-		VariablePathNode node = new VariablePathNode( context, VariablePathNode.Type.NORMAL );
-		node.append( new Pair<>( new ConstantStringExpression( context, destination ), null ) );
-		return node;
 	}
 
 	private List< OLSyntaxNode > processOutputPort( OutputPortInfo n )

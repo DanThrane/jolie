@@ -4,7 +4,6 @@ import jolie.lang.parse.context.ParsingContext;
 
 import java.util.*;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 public class ConfigurationTree
 {
@@ -16,12 +15,6 @@ public class ConfigurationTree
 		Map< String, Region > namespaced = regions.getOrDefault( packageName, new HashMap<>() );
 		namespaced.put( region.getProfileName(), region );
 		regions.put( packageName, namespaced );
-	}
-
-	public boolean hasRegion( String moduleName, String profileName )
-	{
-		Map< String, Region > namespaced = regions.get( moduleName );
-		return namespaced != null && namespaced.containsKey( profileName );
 	}
 
 	public Region getRegion( String moduleName, String profileName )
@@ -50,10 +43,10 @@ public class ConfigurationTree
 		private String packageName;
 		private String extendsProfile;
 		private ParsingContext context;
-		private final Map< String, ExternalPort > inports = new HashMap<>();
-		private final Map< String, ExternalPort > outports = new HashMap<>();
+		private final Map< String, ExternalPort > inPorts = new HashMap<>();
+		private final Map< String, ExternalPort > outPorts = new HashMap<>();
 		private final Map< String, ExternalInterface > interfaces = new HashMap<>();
-		private final Map< String, List< ExternalParamNode > > parameters = new HashMap<>();
+		private final List< ExternalParamNode > parameters = new ArrayList<>();
 
 		public String getProfileName()
 		{
@@ -98,9 +91,9 @@ public class ConfigurationTree
 		public void addPort( ExternalPort port )
 		{
 			if ( port.getType() == PortType.INPUT ) {
-				inports.put( port.getName(), port );
+				inPorts.put( port.getName(), port );
 			} else if ( port.getType() == PortType.OUTPUT ) {
-				outports.put( port.getName(), port );
+				outPorts.put( port.getName(), port );
 			}
 		}
 
@@ -111,19 +104,17 @@ public class ConfigurationTree
 
 		public void addParameter( ExternalParamNode node )
 		{
-			List< ExternalParamNode > assigns = parameters.getOrDefault( node.name(), new ArrayList<>() );
-			assigns.add( node );
-			parameters.put( node.name(), assigns );
+			parameters.add( node );
 		}
 
 		public ExternalPort getInputPort( String name )
 		{
-			return inports.get( name );
+			return inPorts.get( name );
 		}
 
 		public ExternalPort getOutputPort( String name )
 		{
-			return outports.get( name );
+			return outPorts.get( name );
 		}
 
 		public ExternalInterface getInterface( String name )
@@ -133,7 +124,7 @@ public class ConfigurationTree
 
 		public List< ExternalParamNode > getParameters()
 		{
-			return parameters.values().stream().flatMap( List::stream ).collect( Collectors.toList() );
+			return parameters;
 		}
 
 		public static Region merge( Region region, Region parentRegion )
@@ -145,12 +136,12 @@ public class ConfigurationTree
 			String profileName = region.getProfileName();
 			String packageName = region.getPackageName();
 
-			Map< String, ExternalPort > inports = new HashMap<>();
-			Map< String, ExternalPort > outports = new HashMap<>();
-			region.inports.values().forEach( it -> inports.put( it.getName(), it ) );
-			region.outports.values().forEach( it -> outports.put( it.getName(), it ) );
-			parentRegion.inports.values().forEach( processPorts( inports ) );
-			parentRegion.outports.values().forEach( processPorts( outports ) );
+			Map< String, ExternalPort > inPorts = new HashMap<>();
+			Map< String, ExternalPort > outPorts = new HashMap<>();
+			region.inPorts.values().forEach( it -> inPorts.put( it.getName(), it ) );
+			region.outPorts.values().forEach( it -> outPorts.put( it.getName(), it ) );
+			parentRegion.inPorts.values().forEach( processPorts( inPorts ) );
+			parentRegion.outPorts.values().forEach( processPorts( outPorts ) );
 
 			Map< String, ExternalInterface > interfaces = new HashMap<>();
 			region.interfaces.values().forEach( it -> interfaces.put( it.name(), it ) );
@@ -163,20 +154,11 @@ public class ConfigurationTree
 			Region result = new Region();
 			result.setPackageName( packageName );
 			result.setProfileName( profileName );
-			inports.values().forEach( result::addPort );
-			outports.values().forEach( result::addPort );
+			inPorts.values().forEach( result::addPort );
+			outPorts.values().forEach( result::addPort );
+			parentRegion.parameters.forEach( result::addParameter );
+			region.parameters.forEach( result::addParameter );
 
-			for ( List< ExternalParamNode > assigns : parentRegion.parameters.values() ) {
-				for ( ExternalParamNode node : assigns ) {
-					result.addParameter( node );
-				}
-			}
-
-			for ( List< ExternalParamNode > assigns : region.parameters.values() ) {
-				for ( ExternalParamNode node : assigns ) {
-					result.addParameter( node );
-				}
-			}
 			interfaces.values().forEach( result::addInterface );
 			return result;
 		}
@@ -252,13 +234,13 @@ public class ConfigurationTree
 	public static class ExternalParamNode
 	{
 		private final ParsingContext context;
-		private final String name;
+		private final VariablePathNode path;
 		private final OLSyntaxNode expressionNode;
 
-		public ExternalParamNode( ParsingContext context, String name, OLSyntaxNode expressionNode )
+		public ExternalParamNode( ParsingContext context, VariablePathNode path, OLSyntaxNode expressionNode )
 		{
 			this.context = context;
-			this.name = name;
+			this.path = path;
 			this.expressionNode = expressionNode;
 		}
 
@@ -267,9 +249,9 @@ public class ConfigurationTree
 			return context;
 		}
 
-		public String name()
+		public VariablePathNode path()
 		{
-			return name;
+			return path;
 		}
 
 		public OLSyntaxNode expressionNode()
@@ -355,6 +337,7 @@ public class ConfigurationTree
 			return context;
 		}
 
+		@SuppressWarnings( "SimplifiableIfStatement" )
 		@Override
 		public boolean equals( Object o )
 		{
