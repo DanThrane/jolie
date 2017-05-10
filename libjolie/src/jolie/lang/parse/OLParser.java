@@ -251,7 +251,7 @@ public class OLParser extends AbstractParser
 				} else {
 					eatIdentifier( "expected type name" );
 				}
-				
+
 				Range cardinality = parseCardinality();
 				eat( Scanner.TokenType.COLON, "expected COLON" );
 
@@ -532,7 +532,7 @@ public class OLParser extends AbstractParser
 			eat( Scanner.TokenType.RCURLY, "expected }" );
 		}
 	}
-	
+
 	private URL guessIncludeFilepath( String urlStr, String filename, String path )
 	{
 		try {
@@ -582,11 +582,11 @@ public class OLParser extends AbstractParser
 		} catch( MalformedURLException | URISyntaxException e ) {}
 		return null;
 	}
-	
+
 	private IncludeFile retrieveIncludeFile( final String path, final String filename )
 	{
 		IncludeFile ret;
-		
+
 		String urlStr = build( path, Constants.fileSeparator, filename );
 
 		ret = tryAccessIncludeFile( urlStr );
@@ -598,9 +598,9 @@ public class OLParser extends AbstractParser
 		}
 		return ret;
 	}
-	
+
 	private final Map< String, URL > resourceCache = new HashMap<>();
-	
+
 	private IncludeFile tryAccessIncludeFile( String includeStr )
 	{
 		if ( Helpers.getOperatingSystemType() == Helpers.OSType.Windows ) {
@@ -615,7 +615,7 @@ public class OLParser extends AbstractParser
 			includeStr,
 			classLoader::getResource
 		);
-		
+
 		if ( includeURL != null ) {
 			try {
 				String parent;
@@ -770,11 +770,14 @@ public class OLParser extends AbstractParser
 		return false;
 	}
 
-	private PortInfo parsePort( boolean isExternal )
+	private PortInfo parsePort( boolean isDynamic )
 		throws IOException, ParserException
 	{
 		PortInfo portInfo = null;
 		if ( token.isKeyword( "inputPort" ) ) {
+			if ( isDynamic ) {
+				throwException( "input ports cannot be dynamic" );
+			}
 			portInfo = parseInputPortInfo();
 		} else if ( token.isKeyword( "outputPort" ) ) {
 			getToken();
@@ -786,9 +789,9 @@ public class OLParser extends AbstractParser
 			program.addChild( p );
 			eat( Scanner.TokenType.RCURLY, "expected }" );
 			portInfo = p;
+			p.setDynamic( isDynamic );
 		}
 		assert portInfo != null;
-		portInfo.setExternal( isExternal );
 		return portInfo;
 	}
 
@@ -805,16 +808,12 @@ public class OLParser extends AbstractParser
 				commentToken = token;
 				getToken();
 			} else {
-				boolean isExternal = false;
-				if ( token.is( Scanner.TokenType.HASH ) ) {
+				boolean isDynamic = false;
+				if ( token.is( Scanner.TokenType.DYNAMIC ) ) {
 					getToken();
-					assertToken( Scanner.TokenType.ID, "expected 'ext" );
-					if ( !token.content().equals( "ext" ) ) throwException( "expected 'ext" );
-					getToken();
-					isExternal = true;
-					if ( !token.isKeyword( "interface" ) && !token.isKeyword( "inputPort" ) &&
-							!token.isKeyword( "outputPort" ) ) {
-						throwException( "Expected 'interface', 'inputPort', or 'outputPort'" );
+					isDynamic = true;
+					if ( !token.isKeyword( "outputPort" ) ) {
+						throwException( "Expected 'outputPort'" );
 					}
 				}
 
@@ -822,17 +821,17 @@ public class OLParser extends AbstractParser
 					getToken();
 					if ( token.isKeyword( "extender") ) {
 						getToken();
-						if ( isExternal ) {
+						if ( isDynamic ) {
 							throwException( "interface extenders cannot be external" );
 						}
 						node = parseInterfaceExtender();
 					} else {
-						node = parseInterface(isExternal);
+						node = parseInterface();
 					}
 				} else if ( token.isKeyword( "inputPort" ) ) {
-					node = parsePort(isExternal);
+					node = parsePort(isDynamic);
 				} else if ( token.isKeyword( "outputPort" ) ) {
-					node = parsePort(isExternal);
+					node = parsePort(isDynamic);
 				} else {
 					keepRun = false;
 
@@ -862,7 +861,7 @@ public class OLParser extends AbstractParser
 		}
 		return p;
 	}
-    
+
 	private InputPortInfo createInternalServiceInputPort( String serviceName, List< InterfaceDefinition> interfaceList )
 		throws ParserException
 	{
@@ -886,7 +885,7 @@ public class OLParser extends AbstractParser
 		}
 		return iport;
 	}
-    
+
 	/**
 	 * Parses an internal service, i.e. service service_name {}
 	 *
@@ -966,7 +965,7 @@ public class OLParser extends AbstractParser
 
 		//add output port to main program
 		program.addChild( createInternalServicePort( serviceName, interfaceList ) );
-		
+
 		//create Program representing the internal service
 		Program internalServiceProgram = new Program( getContext() );
 
@@ -1006,7 +1005,7 @@ public class OLParser extends AbstractParser
 		//add embedded service node to program that is embedding it
 		program.addChild( internalServiceNode );
 	}
-    
+
 	private InputPortInfo parseInputPortInfo()
 		throws IOException, ParserException
 	{
@@ -1015,14 +1014,14 @@ public class OLParser extends AbstractParser
 		URI inputPortLocation;
 		List< InterfaceDefinition > interfaceList = new ArrayList<>();
 		OLSyntaxNode protocolConfiguration = new NullProcessStatement( getContext() );
-		
+
 		getToken();
 		assertToken( Scanner.TokenType.ID, "expected inputPort name" );
 		inputPortName = token.content();
 		getToken();
 		eat( Scanner.TokenType.LCURLY, "{ expected" );
 		InterfaceDefinition iface = new InterfaceDefinition( getContext(), "Internal interface for: " + inputPortName );
-		
+
 		inputPortLocation = null;
 		protocolId = null;
 		Map<String, String> redirectionMap = new HashMap<>();
@@ -1127,7 +1126,7 @@ public class OLParser extends AbstractParser
 		program.addChild( iport );
 		return iport;
 	}
-	
+
 	private void parseAggregationList( List< InputPortInfo.AggregationItemInfo > aggregationList )
 		throws ParserException, IOException
 	{
@@ -1177,7 +1176,7 @@ public class OLParser extends AbstractParser
 			}
 		}
 	}
-	
+
 	private InterfaceDefinition parseInterfaceExtender()
 		throws IOException, ParserException
 	{
@@ -1196,23 +1195,22 @@ public class OLParser extends AbstractParser
 		return extender;
 	}
 
-	private InterfaceDefinition parseInterface( boolean isExternal )
+	private InterfaceDefinition parseInterface()
 		throws IOException, ParserException
 	{
 		String name;
 		InterfaceDefinition iface;
-        assertToken( Scanner.TokenType.ID, "expected interface name" );
+		assertToken( Scanner.TokenType.ID, "expected interface name" );
 		name = token.content();
-		getToken();
-		eat( Scanner.TokenType.LCURLY, "expected {" );
 		iface = new InterfaceDefinition( getContext(), name );
-		iface.setExternal( isExternal );
-		if ( !isExternal ) { // Do not allow operations on external interfaces
-			parseOperations( iface );
-		}
 		interfaces.put( name, iface );
+		getToken();
+		if ( token.is( Scanner.TokenType.LCURLY ) ) {
+			getToken();
+			parseOperations( iface );
+			eat( Scanner.TokenType.RCURLY, "expected }" );
+		}
 		program.addChild( iface );
-		eat( Scanner.TokenType.RCURLY, "expected }" );
 		return iface;
 	}
 
@@ -1252,7 +1250,7 @@ public class OLParser extends AbstractParser
 					}
 					p.addInterface( i );
 					getToken();
-					
+
 					if ( token.is( Scanner.TokenType.COMMA ) ) {
 						getToken();
 					} else {
@@ -1447,7 +1445,7 @@ public class OLParser extends AbstractParser
 				} else {
 					oc.addOperation( opRR );
 				}
-				
+
 				if ( token.is( Scanner.TokenType.COMMA ) ) {
 					getToken();
 				} else {
@@ -1459,7 +1457,7 @@ public class OLParser extends AbstractParser
 
 		}
 	}
-	
+
 	private SequenceStatement initSequence = null;
 	private DefinitionNode main = null;
 
@@ -1532,7 +1530,7 @@ public class OLParser extends AbstractParser
 
 		return retVal;
 	}
-	
+
 	private CourierDefinitionNode parseCourierDefinition()
 		throws IOException, ParserException
 	{
@@ -1584,7 +1582,7 @@ public class OLParser extends AbstractParser
 
 		return stm;
 	}
-	
+
 	private final List< List< Scanner.Token > > inVariablePaths = new ArrayList<>();
 
 	private OLSyntaxNode parseInVariablePathProcess( boolean withConstruct )
@@ -1639,7 +1637,7 @@ public class OLParser extends AbstractParser
 			checkConstant();
 			String id = token.content();
 			getToken();
-			
+
 			if ( token.is( Scanner.TokenType.LSQUARE ) || token.is( Scanner.TokenType.DOT ) || token.is( Scanner.TokenType.ASSIGN ) || token.is( Scanner.TokenType.ADD_ASSIGN ) || token.is( Scanner.TokenType.MINUS_ASSIGN ) || token.is( Scanner.TokenType.MULTIPLY_ASSIGN ) || token.is( Scanner.TokenType.DIVIDE_ASSIGN ) || token.is( Scanner.TokenType.POINTS_TO ) || token.is( Scanner.TokenType.DEEP_COPY_LEFT ) || token.is( Scanner.TokenType.DECREMENT ) || token.is( Scanner.TokenType.INCREMENT ) ) {
 				retVal = parseAssignOrDeepCopyOrPointerStatement( _parseVariablePath( id ) );
 			} else if ( id.equals( "forward" ) && ( token.is( Scanner.TokenType.ID ) || token.is( Scanner.TokenType.LPAREN ) ) ) {
@@ -1718,10 +1716,10 @@ public class OLParser extends AbstractParser
 		case FOR:
 			getToken();
 			eat( Scanner.TokenType.LPAREN, "expected (" );
-			
+
 			startBackup();
 			VariablePathNode leftPath = null;
-			
+
 			try {
 				leftPath = parseVariablePath();
 			} catch( ParserException e ) {}
@@ -1761,7 +1759,7 @@ public class OLParser extends AbstractParser
 			eat( Scanner.TokenType.LPAREN, "expected (" );
 
 			final VariablePathNode keyPath = parseVariablePath();
-			
+
 			eat( Scanner.TokenType.COLON, "expected :" );
 
 			final VariablePathNode targetPath = parseVariablePath();
@@ -1938,7 +1936,7 @@ public class OLParser extends AbstractParser
 
 		return retVal;
 	}
-	
+
 	private OLSyntaxNode parseProvideUntilStatement()
 		throws IOException, ParserException
 	{
@@ -1948,12 +1946,12 @@ public class OLParser extends AbstractParser
 			throwException( "expected until" );
 		}
 		getToken();
-		
+
 		NDChoiceStatement until = parseNDChoiceStatement();
-		
+
 		return new ProvideUntilStatement( context, provide, until );
 	}
-	
+
 	private OLSyntaxNode parseForwardStatement()
 		throws IOException, ParserException
 	{
@@ -1970,7 +1968,7 @@ public class OLParser extends AbstractParser
 		} else { // Notification
 			retVal = new NotificationForwardStatement( getContext(), outputPortName, outputVariablePath );
 		}
-		
+
 		return retVal;
 	}
 
@@ -2001,7 +1999,7 @@ public class OLParser extends AbstractParser
 				vec.add( new Pair<>( name, handler ) );
 			}
 			names.clear();
-			
+
 			if ( token.is( Scanner.TokenType.COMMA ) ) {
 				getToken();
 			} else {
@@ -2154,7 +2152,7 @@ public class OLParser extends AbstractParser
 
 		return _parseVariablePath( varId );
 	}
-	
+
 	private CourierChoiceStatement parseCourierChoice()
 		throws IOException, ParserException
 	{
@@ -2248,7 +2246,7 @@ public class OLParser extends AbstractParser
 			} else {
 				process = new NullProcessStatement( getContext() );
 			}
-			
+
 			stm.addChild( new Pair<>( inputGuard, process ) );
 		}
 
@@ -2701,8 +2699,8 @@ public class OLParser extends AbstractParser
 				eat( Scanner.TokenType.RPAREN, "expected )" );
 				break;
 			}
-		}	
-				
+		}
+
 		if ( retVal == null ) {
 			if ( token.is( Scanner.TokenType.LCURLY ) ) {
 				retVal = new VoidExpressionNode( getContext() );
@@ -2710,43 +2708,43 @@ public class OLParser extends AbstractParser
 				throwException( "expected expression" );
 			}
 		}
-		
+
 		if ( token.is( Scanner.TokenType.LCURLY ) ) {
 			retVal = parseInlineTreeExpression( retVal );
 		}
 
 		return retVal;
 	}
-	
+
 	private OLSyntaxNode parseInlineTreeExpression( OLSyntaxNode rootExpression )
 		throws IOException, ParserException
 	{
 		eat( Scanner.TokenType.LCURLY, "expected {" );
-		
+
 		boolean keepRun = true;
 		VariablePathNode path;
 		OLSyntaxNode expression;
-		
+
 		List< Pair< VariablePathNode, OLSyntaxNode > > assignments = new ArrayList<>();
-		
+
 		while( keepRun ) {
 			eat( Scanner.TokenType.DOT, "expected ." );
-			
+
 			path = parseVariablePath();
 			eat( Scanner.TokenType.ASSIGN, "expected =" );
 			expression = parseExpression();
-			
+
 			assignments.add( new Pair<>( path, expression ) );
-			
+
 			if ( token.is( Scanner.TokenType.COMMA ) ) {
 				getToken();
 			} else {
 				keepRun = false;
 			}
 		}
-		
+
 		eat( Scanner.TokenType.RCURLY, "expected }" );
-		
+
 		return new InlineTreeExpressionNode( rootExpression.context(), rootExpression, assignments.toArray( new Pair[0] ) );
 	}
 
@@ -2778,7 +2776,7 @@ public class OLParser extends AbstractParser
 
 		return product;
 	}
-	
+
 	private static class IncludeFile {
 		private final InputStream inputStream;
 		private final String parentPath;

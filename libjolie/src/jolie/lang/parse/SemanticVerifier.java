@@ -96,6 +96,7 @@ public class SemanticVerifier implements OLVisitor
 	private ExecutionInfo executionInfo = new ExecutionInfo( URIParsingContext.DEFAULT, ExecutionMode.SINGLE );
 	private final Map< String, InputPortInfo > inputPorts = new HashMap<>();
 	private final Map< String, OutputPortInfo > outputPorts = new HashMap<>();
+	private final Set< String > portsWithEmbedding = new HashSet<>();
 
 	private final Set< String > subroutineNames = new HashSet<> ();
 	private final Map< String, OneWayOperationDeclaration > oneWayOperations =
@@ -302,6 +303,20 @@ public class SemanticVerifier implements OLVisitor
 		}
 	}
 
+	private void checkStaticOutputPorts()
+	{
+		for ( OutputPortInfo port : outputPorts.values() ) {
+			if ( port.isDynamic() ) continue;
+			if ( !isConstantMap.computeIfAbsent( port.id(), n -> true ) ) {
+				error( port, "static output port is not considered constant" );
+			}
+
+			if ( port.location() == null && !portsWithEmbedding.contains( port.id() ) ) {
+				error( port, "static output ports require a location or an embedding" );
+			}
+		}
+	}
+
 	private void checkCorrelationAlias( CorrelationAliasInfo alias )
 	{
 		TypeDefinition type = definedTypes.get( alias.guardName() );
@@ -319,6 +334,7 @@ public class SemanticVerifier implements OLVisitor
 		resolveLazyLinks();
 		checkToBeEqualTypes();
 		checkCorrelationSets();
+		checkStaticOutputPorts();
 
 		if ( configuration.checkForMain && mainDefined == false ) {
 			error( null, "Main procedure not defined" );
@@ -405,7 +421,7 @@ public class SemanticVerifier implements OLVisitor
 	@Override
 	public void visit( ParameterDefinition n )
 	{
-		
+
 	}
 
 	private void checkCardinality( TypeDefinition type )
@@ -461,10 +477,6 @@ public class SemanticVerifier implements OLVisitor
 	@Override
 	public void visit( final InputPortInfo n )
 	{
-		if ( n.isExternal() ) {
-			error( n, "unresolved external input port '" + n.id() + "'" );
-		}
-
 		if ( inputPorts.get( n.id() ) != null ) {
 			error( n, "input port " + n.id() + " has been already defined" );
 		}
@@ -544,12 +556,9 @@ public class SemanticVerifier implements OLVisitor
 	@Override
 	public void visit( OutputPortInfo n )
 	{
-		if ( n.isExternal() ) {
-			error( n, "unresolved external output port '" + n.id() + "'" );
-		}
-
-		if ( outputPorts.get( n.id() ) != null )
+		if ( outputPorts.get( n.id() ) != null ) {
 			error( n, "output port " + n.id() + " has been already defined" );
+		}
 		outputPorts.put( n.id(), n );
 
 		encounteredAssignment( n.id() );
@@ -1154,7 +1163,9 @@ public class SemanticVerifier implements OLVisitor
 	}
 
 	@Override
-	public void visit( EmbeddedServiceNode n ) {}
+	public void visit( EmbeddedServiceNode n ) {
+		portsWithEmbedding.add( n.portId() );
+	}
 
 	@Override
 	public void visit( InterfaceExtenderDefinition n ) {}
@@ -1229,11 +1240,7 @@ public class SemanticVerifier implements OLVisitor
 
 	@Override
 	public void visit( InterfaceDefinition n )
-	{
-		if ( n.isExternal() ) {
-			error( n, "unresolved external interface '" + n.name() + "'" );
-		}
-	}
+	{}
 
 	@Override
 	public void visit( FreshValueExpressionNode n )

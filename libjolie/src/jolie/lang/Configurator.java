@@ -25,10 +25,7 @@ import jolie.lang.parse.ParserException;
 import jolie.lang.parse.Scanner;
 import jolie.lang.parse.ast.*;
 import jolie.lang.parse.ast.ConfigurationTree.Region;
-import jolie.lang.parse.ast.expression.ConstantStringExpression;
 import jolie.lang.parse.ast.types.*;
-import jolie.lang.parse.context.ParsingContext;
-import jolie.util.Pair;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -200,16 +197,15 @@ public class Configurator
 		List< OLSyntaxNode > result = new ArrayList<>();
 		ConfigurationTree.ExternalPort port = mergedRegion.getOutputPort( n.id() );
 		if ( port != null ) {
-			if ( !n.isExternal() ) {
+			if ( n.isDynamic() ) {
 				throw new ConfigurationException( String.format(
-						"Attempting to configure non-external output port '%s' defined at %s:%d.\n  " +
+						"Attempting to configure dynamic output port '%s' defined at %s:%d.\n  " +
 								"Configuration took place at %s:%d",
 						n.id(), n.context().source().toString(), n.context().line(),
 						port.getContext().source().toString(), port.getContext().line()
 				) );
 			}
 
-			n.setExternal( false );
 			if ( port.getLocation() != null ) {
 				n.setLocation( safeParse( port.getLocation() ) );
 			}
@@ -262,18 +258,8 @@ public class Configurator
 		List< OLSyntaxNode > result = new ArrayList<>();
 
 		ConfigurationTree.ExternalPort port = mergedRegion.getInputPort( n.id() );
-		// Right now, let's assume that if we have values, it means we need to
-		// override existing info.
 		if ( port != null ) {
-			if ( !n.isExternal() ) {
-				throw new ConfigurationException( String.format(
-						"Attempting to configure non-external input port %s defined at %s:%d.\n  " +
-								"Configuration took place at %s:%d",
-						n.id(), n.context().source().toString(), n.context().line(),
-						port.getContext().source().toString(), port.getContext().line()
-				) );
-			}
-
+			// TODO Check if overriding existing values, should cause an error
 			URI location = n.location();
 			String protocolId = n.protocolId();
 			OLSyntaxNode properties = n.protocolConfiguration();
@@ -281,7 +267,7 @@ public class Configurator
 				location = safeParse( port.getLocation() );
 			}
 
-			if ( port.getProtocol() != null ) {
+			if ( port.getProtocol() != null && port.getProtocol().getType() != null ) {
 				protocolId = port.getProtocol().getType();
 
 				if ( port.getProtocol().getProperties() != null ) {
@@ -307,16 +293,15 @@ public class Configurator
 	{
 		ConfigurationTree.ExternalInterface iface = mergedRegion.getInterface( n.name() );
 		if ( iface != null ) {
-			if ( !n.isExternal() ) {
+			if ( !n.operationsMap().isEmpty() ) {
 				throw new ConfigurationException( String.format(
-						"Attempting to configure non-external interface %s defined at %s:%d.\n  " +
+						"Attempting to configure non-empty interface %s defined at %s:%d.\n  " +
 								"Configuration took place at %s:%d",
 						n.name(), n.context().source().toString(), n.context().line(),
 						iface.context().source().toString(), iface.context().line()
 				) );
 			}
 
-			n.setExternal( false );
 			List< OLSyntaxNode > result = new ArrayList<>();
 			Program parsed = parsePackage( iface.fromPackage() );
 			InterfaceDefinition target = parsed.children().stream()
@@ -327,7 +312,7 @@ public class Configurator
 					.orElseThrow( () -> new ConfigurationException( "Unable to find interface '" + iface.realName() +
 							"' from package '" + iface.fromPackage() + "'" ) );
 
-			if ( target.isExternal() ) {
+			if ( target.operationsMap().isEmpty() ) {
 				throw new ConfigurationException( String.format(
 						"Attempting to inject the empty interface %s [%s:%d] into %s [%s:%d].\n  " +
 								"Configuration took place at %s:%d",

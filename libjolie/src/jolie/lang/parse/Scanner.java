@@ -135,6 +135,7 @@ public class Scanner
 		CONFIGURES,			///< configures
 		EMBEDS,				///< configures
 		EXTENDS,			///< extends
+		DYNAMIC,			///< dynamic
 		ERROR				///< Scanner error
 	}
 	
@@ -194,6 +195,7 @@ public class Scanner
 		unreservedKeywords.put( "configures", TokenType.CONFIGURES );
 		unreservedKeywords.put( "embeds", TokenType.EMBEDS );
 		unreservedKeywords.put( "extends", TokenType.EXTENDS );
+		unreservedKeywords.put( "dynamic", TokenType.DYNAMIC );
 	}
 	
 	/**
