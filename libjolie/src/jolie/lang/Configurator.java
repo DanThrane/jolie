@@ -24,6 +24,7 @@ import jolie.lang.parse.OLParser;
 import jolie.lang.parse.ParserException;
 import jolie.lang.parse.Scanner;
 import jolie.lang.parse.ast.*;
+import jolie.lang.parse.ast.ConfigurationTree.Region;
 import jolie.lang.parse.ast.expression.ConstantStringExpression;
 import jolie.lang.parse.ast.types.*;
 import jolie.lang.parse.context.ParsingContext;
@@ -51,7 +52,7 @@ public class Configurator
 	private final String[] includePaths;
 	private final ClassLoader classLoader;
 	private final Map< String, JoliePackage > knownPackages;
-	private ConfigurationTree.Region mergedRegion;
+	private Region mergedRegion;
 	private ConfigurationTree inputTree;
 	private File origConfigFile;
 
@@ -72,46 +73,35 @@ public class Configurator
 	public Program process() throws ConfigurationException, ParserException, IOException
 	{
 		if ( thisPackage != null ) {
-			ConfigurationTree.Region region = getRegionFromArguments();
-			ConfigurationTree.Region defaultRegion = getDefaultRegion();
-
-			if ( defaultRegion != null ) {
-				region = ConfigurationTree.Region.merge( region, defaultRegion );
-			}
-			mergedRegion = region;
+			mergedRegion = mergeRegions( getRegionFromArguments() );
 			return doProcess( inputProgram );
 		}
 		return inputProgram;
 	}
 
-	private ConfigurationTree.Region getDefaultRegion() throws IOException, ParserException, ConfigurationException
+	private Region mergeRegions( Region inputRegion )
 	{
-		File root = new File( thisPackage.getRoot() );
-		File file = new File( root, "default.col" );
-		if ( !file.exists() ) return null;
-
-		COLParser parser = new COLParser(
-				new Scanner( new FileInputStream( file ), file.toURI(), "US-ASCII" ),
-				root
-		);
-		ConfigurationTree tree = parser.parse();
-
-		Map< String, Map< String, ConfigurationTree.Region > > regions = tree.getRegions();
-		Map< String, ConfigurationTree.Region > namespaced = regions.get( thisPackage.getName() );
-		if ( namespaced.size() != 1 ) {
-			throw new ConfigurationException( "Default configuration unit (" + file.getAbsolutePath() + ") contains " +
-					"more than one unit or no units. Only one unit named 'default' is allowed" );
+		if ( inputRegion.getExtendsProfile() != null ) {
+			Map< String, Region > namespaced = inputTree.getRegions()
+					.get( thisPackage.getName() );
+			assert namespaced != null;
+			Region extendsRegion = namespaced.get( inputRegion.getExtendsProfile() );
+			if ( extendsRegion == null ) {
+				throw new ConfigurationException( String.format(
+						"Region '%s' (%s:%d) is attempting to extend '%s' but no such profile exists.",
+						inputRegion.getProfileName(),
+						inputRegion.getContext().sourceName(),
+						inputRegion.getContext().line(),
+						inputRegion.getExtendsProfile()
+				) );
+			}
+			extendsRegion = mergeRegions( extendsRegion );
+			return Region.merge( inputRegion, extendsRegion );
 		}
-
-		if ( !namespaced.containsKey( "default" ) ) {
-			throw new ConfigurationException( "Default configuration unit (" + file.getAbsolutePath() + ") is not " +
-					"named correctly. Only one unit named 'default' is allowed" );
-		}
-
-		return namespaced.get( "default" );
+		return inputRegion;
 	}
 
-	private ConfigurationTree.Region getRegionFromArguments() throws IOException, ParserException,
+	private Region getRegionFromArguments() throws IOException, ParserException,
 			ConfigurationException
 	{
 		if ( configurationFile != null ) {
@@ -123,16 +113,17 @@ public class Configurator
 			origConfigFile = configFile;
 			COLParser parser = new COLParser(
 					new Scanner( new FileInputStream( configFile ), configFile.toURI(), "US-ASCII" ),
-					configFile.getParentFile()
+					configFile.getParentFile(),
+					knownPackages
 			);
 
 			inputTree = parser.parse();
-			Map< String, ConfigurationTree.Region > namespaced = inputTree.getRegions().get( thisPackage.getName() );
+			Map< String, Region > namespaced = inputTree.getRegions().get( thisPackage.getName() );
 			if ( namespaced == null ) {
 				throw new ConfigurationException( "Could not find profile configuring " + thisPackage.getName() );
 			}
 
-			ConfigurationTree.Region region = namespaced.get( configurationProfile );
+			Region region = namespaced.get( configurationProfile );
 			if ( region == null ) {
 				throw new ConfigurationException(
 						"Could not find requested configuration region." +
@@ -142,7 +133,7 @@ public class Configurator
 			}
 			return region;
 		} else {
-			ConfigurationTree.Region region = new ConfigurationTree.Region();
+			Region region = new Region();
 			region.setProfileName( "empty-unit-" + thisPackage.getName() );
 			region.setPackageName( thisPackage.getName() );
 			return region;
@@ -206,8 +197,7 @@ public class Configurator
 
 	private VariablePathNode buildParamsPath( ParsingContext context, String destination )
 	{
-		VariablePathNode node = new VariablePathNode( context, VariablePathNode.Type.GLOBAL );
-		node.append( new Pair<>( new ConstantStringExpression( context, "params" ), null ) );
+		VariablePathNode node = new VariablePathNode( context, VariablePathNode.Type.NORMAL );
 		node.append( new Pair<>( new ConstantStringExpression( context, destination ), null ) );
 		return node;
 	}
@@ -244,8 +234,8 @@ public class Configurator
 
 		// Embedding needs to go after the port in the AST
 		if ( port != null && port.isEmbedding() ) {
-			ConfigurationTree.Region region = null;
-			Map< String, ConfigurationTree.Region > namespaced = inputTree.getRegions().get( port.getModule() );
+			Region region = null;
+			Map< String, Region > namespaced = inputTree.getRegions().get( port.getModule() );
 
 			if ( namespaced != null ) {
 				region = namespaced.get( port.getProfile() );

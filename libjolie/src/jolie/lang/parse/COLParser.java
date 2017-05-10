@@ -19,6 +19,7 @@
 
 package jolie.lang.parse;
 
+import jolie.lang.JoliePackage;
 import jolie.lang.parse.ast.ConfigurationTree;
 import jolie.lang.parse.ast.ConfigurationTree.ExternalPort;
 import jolie.lang.parse.ast.ConfigurationTree.PortProtocol;
@@ -32,8 +33,8 @@ import jolie.util.Pair;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.net.URI;
+import java.util.*;
 
 import static jolie.lang.parse.Scanner.TokenType.*;
 
@@ -44,29 +45,78 @@ import static jolie.lang.parse.Scanner.TokenType.*;
  */
 public class COLParser extends AbstractParser
 {
+	// TODO deal with duplicate profiles, should be an error
+
 	private static final String INPUT_PORT = "inputPort";
 	private static final String OUTPUT_PORT = "outputPort";
 	private static final String INTERFACE = "interface";
+	private static final String CONFIG_DIRECTORY = "conf";
+	private static final String FILE_EXTENSION = ".col";
 
 	private final ConfigurationTree configurationTree = new ConfigurationTree();
 	private File workingDirectory;
+	private final Map< String, JoliePackage > knownModules;
+	private final Deque< String > usedModules = new ArrayDeque<>();
+	private final Set< String > visitedModules = new HashSet<>();
 
 	private Region currentRegion = null;
+	private Set< URI > includedFiles = new HashSet<>();
 
 	/**
 	 * Constructor
 	 *
 	 * @param scanner          The scanner to use during the parsing procedure.
 	 * @param workingDirectory The working directory. Used for resolving includes
+	 * @param knownModules     The modules that are known to this parser
 	 */
-	public COLParser( Scanner scanner, File workingDirectory )
+	public COLParser( Scanner scanner, File workingDirectory, Map< String, JoliePackage > knownModules )
 	{
 		super( scanner );
 		this.workingDirectory = workingDirectory;
+		this.knownModules = knownModules;
+		includedFiles.add( scanner.source() );
 	}
 
 	public ConfigurationTree parse()
 			throws IOException, ParserException
+	{
+		parseStartingAtCurrentScanner();
+
+		while ( !usedModules.isEmpty() ) {
+			String next = usedModules.pop();
+
+			// Every time a module is configured it will be added to the usedModules queue
+			// As a result we'll need to break out if we have already configured it before
+			if ( visitedModules.contains( next ) ) continue;
+			visitedModules.add( next );
+
+			JoliePackage module = knownModules.get( next );
+			assert module != null;
+
+			// Parse all files found in the CONFIG_DIRECTORY of each module
+			File confDirectory = new File( module.getRoot(), CONFIG_DIRECTORY );
+			if ( confDirectory.exists() && confDirectory.isDirectory() ) {
+				File[] files = confDirectory.listFiles();
+				if ( files == null ) continue;
+				for ( File includeFile : files ) {
+					if ( includeFile.getName().endsWith( FILE_EXTENSION ) ) {
+						try ( FileInputStream stream = new FileInputStream( includeFile ) ) {
+							workingDirectory = confDirectory;
+							// Include guard is needed to avoid circular includes
+							URI includeURI = includeFile.toURI();
+							if ( !includedFiles.contains( includeURI ) ) {
+								setScanner( new Scanner( stream, includeURI, "US-ASCII" ) );
+								parseStartingAtCurrentScanner();
+							}
+						}
+					}
+				}
+			}
+		}
+		return configurationTree;
+	}
+
+	private void parseStartingAtCurrentScanner() throws IOException, ParserException
 	{
 		getToken();
 		Scanner.Token t;
@@ -79,7 +129,6 @@ public class COLParser extends AbstractParser
 		if ( t.isNot( EOF ) ) {
 			throwException( "Invalid token encountered" );
 		}
-		return configurationTree;
 	}
 
 	private void parseInclude() throws IOException, ParserException
@@ -91,19 +140,23 @@ public class COLParser extends AbstractParser
 			File includeFile = new File( workingDirectory, token.content() );
 			getToken();
 
-			Scanner oldScanner = scanner();
-			Scanner.Token nextToken = token;
-			File oldWorkingDirectory = workingDirectory;
+			URI includeURI = includeFile.toURI();
+			if ( !includedFiles.contains( includeURI ) ) {
+				includedFiles.add( includeURI );
+				Scanner oldScanner = scanner();
+				Scanner.Token nextToken = token;
+				File oldWorkingDirectory = workingDirectory;
 
-			try ( FileInputStream stream = new FileInputStream( includeFile ) ) {
-				workingDirectory = includeFile.getParentFile();
-				setScanner( new Scanner( stream, includeFile.toURI(), "US-ASCII" ) );
-				parse();
+				try ( FileInputStream stream = new FileInputStream( includeFile ) ) {
+					workingDirectory = includeFile.getParentFile();
+					setScanner( new Scanner( stream, includeURI, "US-ASCII" ) );
+					parseStartingAtCurrentScanner();
+				}
+
+				workingDirectory = oldWorkingDirectory;
+				setScanner( oldScanner );
+				token = nextToken;
 			}
-
-			workingDirectory = oldWorkingDirectory;
-			setScanner( oldScanner );
-			token = nextToken;
 		}
 	}
 
@@ -116,10 +169,11 @@ public class COLParser extends AbstractParser
 
 	private Region parseRegion() throws IOException, ParserException
 	{
+		ParsingContext context = getContext();
 		String profileName = null;
+		String extendsProfile = null;
 		if ( token.type() == PROFILE ) {
 			getToken();
-
 			assertToken( STRING, "expected profile name" );
 			profileName = token.content();
 			getToken();
@@ -128,20 +182,43 @@ public class COLParser extends AbstractParser
 		assertToken( CONFIGURES, "expected configures" );
 		getToken();
 
-		assertToken( STRING, "expected package name" );
-		String packageName = token.content();
+		assertToken( STRING, "expected module name" );
+		String moduleName = token.content();
 		getToken();
 
-		if ( profileName == null ) profileName = packageName;
+		if ( !knownModules.containsKey( moduleName ) ) {
+			throwException( String.format(
+					"Attempting to configure module %s, but module is not known by the engine\n" +
+							"The following modules are known: %s",
+					moduleName,
+					knownModules.keySet()
+			) );
+		}
 
-		return parseInlineRegion( profileName, packageName );
+
+		usedModules.add( moduleName );
+
+		if ( token.type() == EXTENDS ) {
+			getToken();
+			assertToken( STRING, "expected extends profile name" );
+			extendsProfile = token.content();
+			getToken();
+		}
+
+		if ( profileName == null ) profileName = moduleName;
+
+		return parseInlineRegion( profileName, moduleName, extendsProfile, context );
 	}
 
-	private Region parseInlineRegion( String profileName, String packageName ) throws IOException, ParserException
+	private Region parseInlineRegion( String profileName, String packageName, String extendsProfile,
+									  ParsingContext context )
+			throws IOException, ParserException
 	{
 		currentRegion = new Region();
 		currentRegion.setProfileName( profileName );
 		currentRegion.setPackageName( packageName );
+		currentRegion.setExtendsProfile( extendsProfile );
+		currentRegion.setContext( context );
 
 		eat( LCURLY, "expected region body after region definition" );
 

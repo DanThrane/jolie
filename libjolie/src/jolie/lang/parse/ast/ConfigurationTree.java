@@ -35,6 +35,8 @@ public class ConfigurationTree
 	{
 		private String profileName;
 		private String packageName;
+		private String extendsProfile;
+		private ParsingContext context;
 		private final Map< String, ExternalPort > inports = new HashMap<>();
 		private final Map< String, ExternalPort > outports = new HashMap<>();
 		private final Map< String, ExternalInterface > interfaces = new HashMap<>();
@@ -58,6 +60,26 @@ public class ConfigurationTree
 		public void setPackageName( String packageName )
 		{
 			this.packageName = packageName;
+		}
+
+		public String getExtendsProfile()
+		{
+			return extendsProfile;
+		}
+
+		public ParsingContext getContext()
+		{
+			return context;
+		}
+
+		public void setContext( ParsingContext context )
+		{
+			this.context = context;
+		}
+
+		public void setExtendsProfile( String extendsProfile )
+		{
+			this.extendsProfile = extendsProfile;
 		}
 
 		public void addPort( ExternalPort port )
@@ -101,10 +123,10 @@ public class ConfigurationTree
 			return parameters.values().stream().flatMap( List::stream ).collect( Collectors.toList() );
 		}
 
-		public static Region merge( Region region, Region defaultRegion )
+		public static Region merge( Region region, Region parentRegion )
 		{
-			if ( !region.getPackageName().equals( defaultRegion.getPackageName() ) ) {
-				throw new IllegalArgumentException( "Default unit doesn't have a matching package name!" );
+			if ( !region.getPackageName().equals( parentRegion.getPackageName() ) ) {
+				throw new IllegalArgumentException( "Parent unit doesn't have a matching package name!" );
 			}
 
 			String profileName = region.getProfileName();
@@ -114,12 +136,12 @@ public class ConfigurationTree
 			Map< String, ExternalPort > outports = new HashMap<>();
 			region.inports.values().forEach( it -> inports.put( it.getName(), it ) );
 			region.outports.values().forEach( it -> outports.put( it.getName(), it ) );
-			defaultRegion.inports.values().forEach( processPorts( inports ) );
-			defaultRegion.outports.values().forEach( processPorts( outports ) );
+			parentRegion.inports.values().forEach( processPorts( inports ) );
+			parentRegion.outports.values().forEach( processPorts( outports ) );
 
 			Map< String, ExternalInterface > interfaces = new HashMap<>();
 			region.interfaces.values().forEach( it -> interfaces.put( it.name(), it ) );
-			defaultRegion.interfaces.values().forEach( it -> {
+			parentRegion.interfaces.values().forEach( it -> {
 				if ( !interfaces.containsKey( it.name() ) ) {
 					interfaces.put( it.name(), it );
 				}
@@ -131,7 +153,7 @@ public class ConfigurationTree
 			inports.values().forEach( result::addPort );
 			outports.values().forEach( result::addPort );
 
-			for ( List< ExternalParamNode > assigns : defaultRegion.parameters.values() ) {
+			for ( List< ExternalParamNode > assigns : parentRegion.parameters.values() ) {
 				for ( ExternalParamNode node : assigns ) {
 					result.addParameter( node );
 				}

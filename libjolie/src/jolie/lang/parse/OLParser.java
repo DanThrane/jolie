@@ -501,6 +501,7 @@ public class OLParser extends AbstractParser
 					getToken();
 				}
 			}
+			eat( Scanner.TokenType.RCURLY, "expected }" );
 		}
 	}
 
