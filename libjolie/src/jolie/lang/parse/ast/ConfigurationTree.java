@@ -18,6 +18,19 @@ public class ConfigurationTree
 		regions.put( packageName, namespaced );
 	}
 
+	public boolean hasRegion( String moduleName, String profileName )
+	{
+		Map< String, Region > namespaced = regions.get( moduleName );
+		return namespaced != null && namespaced.containsKey( profileName );
+	}
+
+	public Region getRegion( String moduleName, String profileName )
+	{
+		Map< String, Region > namespaced = regions.get( moduleName );
+		if ( namespaced == null ) return null;
+		return namespaced.get( profileName );
+	}
+
 	public Map< String, Map< String, Region > > getRegions()
 	{
 		return Collections.unmodifiableMap( regions );

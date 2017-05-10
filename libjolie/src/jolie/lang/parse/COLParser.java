@@ -45,8 +45,6 @@ import static jolie.lang.parse.Scanner.TokenType.*;
  */
 public class COLParser extends AbstractParser
 {
-	// TODO deal with duplicate profiles, should be an error
-
 	private static final String INPUT_PORT = "inputPort";
 	private static final String OUTPUT_PORT = "outputPort";
 	private static final String INTERFACE = "interface";
@@ -163,7 +161,17 @@ public class COLParser extends AbstractParser
 	private void parseRegions() throws IOException, ParserException
 	{
 		while ( token.type() == PROFILE || token.type() == CONFIGURES ) {
-			configurationTree.addRegion( parseRegion() );
+			Region region = parseRegion();
+			Region existing = configurationTree.getRegion( region.getPackageName(), region.getProfileName() );
+			if ( existing != null ) {
+				throw new ParserException( region.getContext(), String.format(
+					"Attempting to redefine configuration unit '%s' of '%s', first defined at %s:%d",
+						region.getProfileName(),
+						region.getPackageName(),
+						existing.getContext().sourceName(), existing.getContext().line()
+				) );
+			}
+			configurationTree.addRegion( region );
 		}
 	}
 
