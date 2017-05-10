@@ -96,17 +96,19 @@ public class Configurator
 		);
 		ConfigurationTree tree = parser.parse();
 
-		if ( tree.getRegions().size() != 1 ) {
+		Map< String, Map< String, ConfigurationTree.Region > > regions = tree.getRegions();
+		Map< String, ConfigurationTree.Region > namespaced = regions.get( thisPackage.getName() );
+		if ( namespaced.size() != 1 ) {
 			throw new ConfigurationException( "Default configuration unit (" + file.getAbsolutePath() + ") contains " +
 					"more than one unit or no units. Only one unit named 'default' is allowed" );
 		}
 
-		if ( !tree.getRegions().get( 0 ).getProfileName().equals( "default" ) ) {
+		if ( !namespaced.containsKey( "default" ) ) {
 			throw new ConfigurationException( "Default configuration unit (" + file.getAbsolutePath() + ") is not " +
 					"named correctly. Only one unit named 'default' is allowed" );
 		}
 
-		return tree.getRegions().get( 0 );
+		return namespaced.get( "default" );
 	}
 
 	private ConfigurationTree.Region getRegionFromArguments() throws IOException, ParserException,
@@ -125,15 +127,20 @@ public class Configurator
 			);
 
 			inputTree = parser.parse();
-			return inputTree.getRegions().stream()
-					.filter( it -> it.getProfileName().equals( configurationProfile ) )
-					.findAny()
-					.orElseThrow( () -> new ConfigurationException(
-							"Could not find requested configuration region." +
-									" Was requested to find '" + configurationProfile + "' from '" +
-									configurationFile + "'. This configuration should match package '" +
-									thisPackage.getName() + "'"
-					) );
+			Map< String, ConfigurationTree.Region > namespaced = inputTree.getRegions().get( thisPackage.getName() );
+			if ( namespaced == null ) {
+				throw new ConfigurationException( "Could not find profile configuring " + thisPackage.getName() );
+			}
+
+			ConfigurationTree.Region region = namespaced.get( configurationProfile );
+			if ( region == null ) {
+				throw new ConfigurationException(
+						"Could not find requested configuration region." +
+								" Was requested to find '" + configurationProfile + "' from '" +
+								configurationFile + "'. This configuration should match package '" +
+								thisPackage.getName() + "'" );
+			}
+			return region;
 		} else {
 			ConfigurationTree.Region region = new ConfigurationTree.Region();
 			region.setProfileName( "empty-unit-" + thisPackage.getName() );
@@ -237,23 +244,28 @@ public class Configurator
 
 		// Embedding needs to go after the port in the AST
 		if ( port != null && port.isEmbedding() ) {
-			ConfigurationTree.Region region = inputTree.getRegions().stream()
-					.filter( it -> it.getProfileName().equals( port.getEmbeds() ) )
-					.findAny()
-					.orElseThrow( () ->
-							new ConfigurationException( String.format(
-									"Attempting to embed profile '%s', but could not find profile.\n  " +
-											"Configuration took place at %s:%d",
-									port.getEmbeds(), port.getContext().source().toString(), port.getContext().line()
-							) ) );
+			ConfigurationTree.Region region = null;
+			Map< String, ConfigurationTree.Region > namespaced = inputTree.getRegions().get( port.getModule() );
+
+			if ( namespaced != null ) {
+				region = namespaced.get( port.getProfile() );
+			}
+
+			if ( region == null ) {
+				throw new ConfigurationException( String.format(
+						"Attempting to embed profile '%s', but could not find profile.\n  " +
+								"Configuration took place at %s:%d",
+						port.getProfile(), port.getContext().source().toString(), port.getContext().line()
+				) );
+			}
 
 			result.add( new EmbeddedServiceNode(
 					n.context(),
 					Constants.EmbeddedServiceType.JOLIE,
 					String.format( "--conf %s %s %s.pkg",
-							port.getEmbeds(),
+							port.getProfile(),
 							origConfigFile != null ? origConfigFile.getAbsolutePath() :
-									new File( thisPackage.getRoot(), configurationFile).getAbsolutePath(),
+									new File( thisPackage.getRoot(), configurationFile ).getAbsolutePath(),
 							region.getPackageName()
 					),
 					n.id()

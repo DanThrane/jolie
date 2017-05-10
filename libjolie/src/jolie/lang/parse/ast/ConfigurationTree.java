@@ -8,16 +8,19 @@ import java.util.stream.Collectors;
 
 public class ConfigurationTree
 {
-	private final List< Region > regions = new ArrayList<>();
+	private final Map< String, Map< String, Region > > regions = new HashMap<>();
 
 	public void addRegion( Region region )
 	{
-		regions.add( region );
+		String packageName = region.getPackageName();
+		Map< String, Region > namespaced = regions.getOrDefault( packageName, new HashMap<>() );
+		namespaced.put( region.getProfileName(), region );
+		regions.put( packageName, namespaced );
 	}
 
-	public List< Region > getRegions()
+	public Map< String, Map< String, Region > > getRegions()
 	{
-		return Collections.unmodifiableList( regions );
+		return Collections.unmodifiableMap( regions );
 	}
 
 	@Override
@@ -246,19 +249,21 @@ public class ConfigurationTree
 		private final PortType type;
 		private final String location;
 		private final PortProtocol protocol;
-		private final String embeds;
+		private final String profile;
+		private final String module;
 		private final ParsingContext context;
 
-		public ExternalPort( String name, PortType type, String embeds, ParsingContext context )
+		public ExternalPort( String name, PortType type, String profile, String module, ParsingContext context )
 		{
 			this.name = name;
 			this.type = type;
-			this.embeds = embeds;
+			this.profile = profile;
+			this.module = module;
 			this.context = context;
 			this.location = null;
 			this.protocol = null;
 
-			assert embeds != null;
+			assert profile != null;
 		}
 
 		public ExternalPort( String name, PortType type, String location, PortProtocol protocol, ParsingContext context )
@@ -268,15 +273,21 @@ public class ConfigurationTree
 			this.location = location;
 			this.protocol = protocol;
 			this.context = context;
-			this.embeds = null;
+			this.profile = null;
+			this.module = null;
 
 			assert name != null;
 			assert type != null;
 		}
 
-		public String getEmbeds()
+		public String getProfile()
 		{
-			return embeds;
+			return profile;
+		}
+
+		public String getModule()
+		{
+			return module;
 		}
 
 		public String getName()
@@ -301,7 +312,7 @@ public class ConfigurationTree
 
 		public boolean isEmbedding()
 		{
-			return embeds != null;
+			return profile != null;
 		}
 
 		public ParsingContext getContext()
@@ -321,7 +332,7 @@ public class ConfigurationTree
 			if ( type != that.type ) return false;
 			if ( location != null ? !location.equals( that.location ) : that.location != null ) return false;
 			if ( protocol != null ? !protocol.equals( that.protocol ) : that.protocol != null ) return false;
-			return embeds != null ? embeds.equals( that.embeds ) : that.embeds == null;
+			return profile != null ? profile.equals( that.profile ) : that.profile == null;
 
 		}
 
@@ -332,7 +343,7 @@ public class ConfigurationTree
 			result = 31 * result + type.hashCode();
 			result = 31 * result + ( location != null ? location.hashCode() : 0 );
 			result = 31 * result + ( protocol != null ? protocol.hashCode() : 0 );
-			result = 31 * result + ( embeds != null ? embeds.hashCode() : 0 );
+			result = 31 * result + ( profile != null ? profile.hashCode() : 0 );
 			return result;
 		}
 
@@ -344,7 +355,7 @@ public class ConfigurationTree
 					", type=" + type +
 					", location='" + location + '\'' +
 					", protocol=" + protocol +
-					", embeds='" + embeds + '\'' +
+					", profile='" + profile + '\'' +
 					'}';
 		}
 	}
