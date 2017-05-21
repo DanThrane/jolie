@@ -17,8 +17,10 @@
  * MA 02110-1301  USA
  */
 
-package jolie.lang;
+package jolie.lang.configuration;
 
+import jolie.lang.Constants;
+import jolie.lang.JoliePackage;
 import jolie.lang.parse.COLParser;
 import jolie.lang.parse.OLParser;
 import jolie.lang.parse.ParserException;
@@ -129,15 +131,13 @@ public class Configurator
 								thisPackage.getName() + "'" );
 			}
 			return region;
-		} else {
+		} else { // TODO Is this still needed? Might just be dead code at this point.
 			Region region = new Region();
 			region.setProfileName( "empty-unit-" + thisPackage.getName() );
 			region.setPackageName( thisPackage.getName() );
 			return region;
 		}
 	}
-
-	private OLSyntaxNode oldInitBody;
 
 	private Program doProcess( Program n )
 	{
@@ -152,11 +152,6 @@ public class Configurator
 				nodes = processOutputPort( ( OutputPortInfo ) node );
 			} else if ( node instanceof InputPortInfo ) {
 				nodes = processInputPort( ( InputPortInfo ) node );
-			} else if ( node instanceof DefinitionNode && ( ( DefinitionNode ) node ).id().equals( "init" ) ) {
-				// Save old init body. We'll insert stuff before it in a new
-				// init process.
-				oldInitBody = ( ( DefinitionNode ) node ).body();
-				nodes = Collections.emptyList();
 			} else if ( node instanceof InterfaceDefinition ) {
 				nodes = processInterface( ( InterfaceDefinition ) node );
 			} else {
@@ -166,30 +161,8 @@ public class Configurator
 			nodes.forEach( output::addChild );
 		}
 
-		if ( oldInitBody != null || !mergedRegion.getParameters().isEmpty() ) {
-			SequenceStatement initBody = new SequenceStatement( n.context() );
-			output.addChild( new DefinitionNode( n.context(), "init", initBody ) );
-
-			// Add parameters first, this way "init" can also use parameters.
-			createParameterInitialization().forEach( initBody::addChild );
-			if ( oldInitBody != null ) {
-				initBody.addChild( oldInitBody );
-			}
-		}
+		mergedRegion.getParameters().forEach( output::addChild );
 		return output;
-	}
-
-	private List< OLSyntaxNode > createParameterInitialization()
-	{
-		List< OLSyntaxNode > result = new ArrayList<>();
-		for ( ConfigurationTree.ExternalParamNode node : mergedRegion.getParameters() ) {
-			result.add( new DeepCopyStatement(
-					node.context(),
-					node.path(),
-					node.expressionNode()
-			) );
-		}
-		return result;
 	}
 
 	private List< OLSyntaxNode > processOutputPort( OutputPortInfo n )
@@ -273,7 +246,8 @@ public class Configurator
 					n.context(),
 					Constants.EmbeddedServiceType.JOLIE,
 					String.format( "--conf %s %s %s.pkg",
-							port.getProfile(),
+							port.getProfile(), // TODO I think the file part is dead code.
+							// origConfigFile != null appears to always be true
 							origConfigFile != null ? origConfigFile.getAbsolutePath() :
 									new File( thisPackage.getRoot(), configurationFile ).getAbsolutePath(),
 							region.getPackageName()
@@ -290,7 +264,6 @@ public class Configurator
 
 		ConfigurationTree.ExternalPort port = mergedRegion.getInputPort( n.id() );
 		if ( port != null ) {
-			// TODO Check if overriding existing values, should cause an error
 			URI location = n.location();
 			String protocolId = n.protocolId();
 			OLSyntaxNode properties = n.protocolConfiguration();
@@ -490,7 +463,7 @@ public class Configurator
 		includes.add( pack.getRoot() );
 		includes.add( new File( pack.getRoot(), "include" ).getAbsolutePath() );
 		Collections.addAll( includes, includePaths );
-		String[] includePaths = includes.toArray( new String[ 0 ] );
+		String[] includePaths = includes.toArray( new String[0] );
 
 		OLParser parser = new OLParser( scanner, includePaths, classLoader );
 		try {

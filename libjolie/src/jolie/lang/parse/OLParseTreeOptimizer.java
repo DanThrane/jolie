@@ -707,6 +707,12 @@ public class OLParseTreeOptimizer
 		}
 
 		@Override
+		public void visit( ConfigurationTree.ExternalParamNode n )
+		{
+			program.addChild( n );
+		}
+
+		@Override
 		public void visit( ValueVectorSizeExpressionNode n )
 		{
 			currNode = new ValueVectorSizeExpressionNode(

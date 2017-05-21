@@ -1,5 +1,6 @@
 package jolie.lang.parse.ast;
 
+import jolie.lang.parse.OLVisitor;
 import jolie.lang.parse.context.ParsingContext;
 
 import java.util.*;
@@ -231,7 +232,10 @@ public class ConfigurationTree
 		}
 	}
 
-	public static class ExternalParamNode
+	// TODO Letting this be an OLSyntaxNode seems wrong.
+	// This node cannot never be created in OL code, but only in COL. We need to make it an OLSyntaxNode to pass it to
+	// the OL syntax tree. Maybe some type synthetic node abstraction would work better here?
+	public static class ExternalParamNode extends OLSyntaxNode
 	{
 		private final ParsingContext context;
 		private final VariablePathNode path;
@@ -239,14 +243,22 @@ public class ConfigurationTree
 
 		public ExternalParamNode( ParsingContext context, VariablePathNode path, OLSyntaxNode expressionNode )
 		{
+			super( context );
 			this.context = context;
 			this.path = path;
 			this.expressionNode = expressionNode;
 		}
 
+		@Override
 		public ParsingContext context()
 		{
 			return context;
+		}
+
+		@Override
+		public void accept( OLVisitor visitor )
+		{
+			visitor.visit( this );
 		}
 
 		public VariablePathNode path()

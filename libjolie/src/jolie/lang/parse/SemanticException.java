@@ -69,6 +69,11 @@ public class SemanticException extends Exception
 
 	public SemanticException() {}
 
+	public void addSemanticError( ParsingContext context, String message )
+	{
+		errorList.add( new SemanticError( context, message ) );
+	}
+
 	public void addSemanticError( OLSyntaxNode node, String message )
 	{
 		if ( node != null ) {

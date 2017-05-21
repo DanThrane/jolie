@@ -26,7 +26,7 @@ import java.io.InputStream;
 import java.net.URI;
 import java.util.Map;
 
-import jolie.lang.Configurator;
+import jolie.lang.configuration.Configurator;
 import jolie.lang.InterfaceCollapser;
 import jolie.lang.JoliePackage;
 import jolie.lang.parse.OLParseTreeOptimizer;

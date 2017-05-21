@@ -335,4 +335,7 @@ public class ProgramInspectorCreatorVisitor implements OLVisitor
 	{
 
 	}
+
+	@Override
+	public void visit( ConfigurationTree.ExternalParamNode n ) {}
 }

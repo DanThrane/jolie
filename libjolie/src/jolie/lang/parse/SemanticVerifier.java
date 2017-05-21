@@ -424,6 +424,12 @@ public class SemanticVerifier implements OLVisitor
 
 	}
 
+	@Override
+	public void visit( ConfigurationTree.ExternalParamNode n )
+	{
+
+	}
+
 	private void checkCardinality( TypeDefinition type )
 	{
 		if ( type.cardinality().min() < 0 ) {

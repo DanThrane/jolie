@@ -56,7 +56,9 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Logger;
 
-import jolie.lang.Configurator;
+import jolie.configuration.ProcessedParameterAssignment;
+import jolie.configuration.ProcessedParameterDefinition;
+import jolie.lang.configuration.Configurator;
 import jolie.lang.Constants;
 import jolie.lang.InterfaceCollapser;
 import jolie.lang.JoliePackage;
@@ -80,23 +82,20 @@ import jolie.net.SessionMessage;
 import jolie.net.ports.OutputPort;
 import jolie.process.DefinitionProcess;
 import jolie.process.InputOperationProcess;
+import jolie.process.Process;
 import jolie.process.SequentialProcess;
-import jolie.runtime.FaultException;
-import jolie.runtime.InputOperation;
-import jolie.runtime.InvalidIdException;
-import jolie.runtime.OneWayOperation;
-import jolie.runtime.RequestResponseOperation;
-import jolie.runtime.TimeoutHandler;
-import jolie.runtime.Value;
-import jolie.runtime.ValueVector;
+import jolie.runtime.*;
 import jolie.runtime.correlation.CorrelationEngine;
 import jolie.runtime.correlation.CorrelationError;
 import jolie.runtime.correlation.CorrelationSet;
 import jolie.runtime.embedding.EmbeddedServiceLoader;
 import jolie.runtime.embedding.EmbeddedServiceLoaderFactory;
+import jolie.runtime.expression.Expression;
+import jolie.runtime.typing.Type;
 import jolie.tracer.DummyTracer;
 import jolie.tracer.PrintingTracer;
 import jolie.tracer.Tracer;
+import jolie.util.Pair;
 
 /**
  * The Jolie interpreter engine.
@@ -279,6 +278,7 @@ public class Interpreter
 	private final String logPrefix;
 	private final Tracer tracer;
 	private boolean check = false;
+	private boolean lateCheck = false;
 	private final Timer timer;
 	private final long persistentConnectionTimeout = 60 * 60 * 1000; // 1 hour
 	private final long awaitTerminationTimeout = 60 * 1000; // 1 minute
@@ -294,6 +294,39 @@ public class Interpreter
 	private final File programDirectory;
 	private OutputPort monitor = null;
 
+	// State for external parameter configuration.
+	// TODO Most of this should go somewhere else. Will go here for now.
+
+	// A synthetic root is required for evaluating values of parameters before the execution thread is initialized
+	private Value externalParamsSyntheticRoot = Value.create();
+	private List< ProcessedParameterAssignment > externalParameterAssigns = new ArrayList<>();
+	private Map< String, ProcessedParameterDefinition > externalParameterDefinitions = new HashMap<>();
+
+	public Value externalParametersRoot()
+	{
+		return externalParamsSyntheticRoot;
+	}
+
+	public List< ProcessedParameterAssignment > externalParameterAssignments()
+	{
+		return Collections.unmodifiableList( externalParameterAssigns );
+	}
+
+	public Map< String, ProcessedParameterDefinition > externalParameterDefinitions()
+	{
+		return Collections.unmodifiableMap( externalParameterDefinitions );
+	}
+
+	public void registerExternalParameterAssignment( ProcessedParameterAssignment assignment )
+	{
+		externalParameterAssigns.add( assignment );
+	}
+
+	public void registerExternalParameterDefinition( ProcessedParameterDefinition definition )
+	{
+		externalParameterDefinitions.put( definition.name(), definition );
+	}
+
 	public void setMonitor( OutputPort monitor )
 	{
 		this.monitor = monitor;
@@ -304,11 +337,6 @@ public class Interpreter
 	{
 		return monitor != null;
 	}
-	
-	/*public long inputMessageTimeout()
-	{
-		return inputMessageTimeout;
-	}*/
 	
 	public String logPrefix()
 	{
@@ -332,9 +360,7 @@ public class Interpreter
 				do {
 					response = channel.recvResponseFor( m );
 				} while( response == null );
-			} catch( URISyntaxException e ) {
-				logWarning( e );
-			} catch( IOException e ) {
+			} catch( URISyntaxException | IOException e ) {
 				logWarning( e );
 			} finally {
 				if ( channel != null ) {
@@ -383,14 +409,6 @@ public class Interpreter
 			}
 		}
 	}
-
-	/*public void removeTimeoutHandler( TimeoutHandler handler )
-	{
-		synchronized( timeoutHandlerQueue ) {
-			timeoutHandlerQueue.remove( handler );
-			checkForExpiredTimeoutHandlers();
-		}
-	}*/
 
 	private void checkForExpiredTimeoutHandlers()
 	{
@@ -555,7 +573,7 @@ public class Interpreter
 		OutputPort ret;
 		if ( (ret=outputPorts.get( key )) == null )
 			throw new InvalidIdException( key );
-		return (OutputPort)ret;
+		return ret;
 	}
 	
 	/**
@@ -853,15 +871,6 @@ public class Interpreter
 		return classLoader;
 	}
 
-	/**
-	 * Returns <code>true</code> if this interpreter is in verbose mode.
-	 * @return <code>true</code> if this interpreter is in verbose mode
-	 */
-	/* public boolean verbose()
-	{
-		return verbose;
-	} */
-
 	/** Constructor.
 	 *
 	 * @param args The command line arguments.
@@ -1082,43 +1091,55 @@ public class Interpreter
 	private void init()
 		throws InterpreterException, IOException
 	{
-            /**
-            * Order is important.
-             * 1 - CommCore needs the OOIT to be initialized.
-             * 2 - initExec must be instantiated before we can receive communications.
-             */
-            if ( buildOOIT() == false && !check ) {
-                throw new InterpreterException( "Error: the interpretation environment couldn't have been initialized" );
-            }
-            if ( check ){
-                exit();
-            } else {
-                sessionStarters = Collections.unmodifiableMap( sessionStarters );
-                try {
-                    initExecutionThread = new InitSessionThread( this, getDefinition( "init" ) );
+		/*
+		 * Order is important.
+		 * 1 - CommCore needs the OOIT to be initialized.
+		 * 2 - initExec must be instantiated before we can receive communications.
+		 */
+		if ( !buildOOIT() && !check ) {
+			throw new InterpreterException( "Error: the interpretation environment couldn't have been initialized" );
+		}
+		if ( check ){
+			exit();
+			return;
+		}
 
-                    commCore.init();
+		LateChecker lateChecker = new LateChecker( this );
+		try {
+			lateChecker.validate();
+		} catch( SemanticException e ) {
+			logger.severe( e.getErrorMessages() );
+			throw new InterpreterException( "Exiting" );
+		}
 
-                    // Initialize program arguments in the args variabile.
-                    ValueVector jArgs = ValueVector.create();
-                    for( String s : arguments ) {
-                        jArgs.add( Value.create( s ) );
-                    }
-                    initExecutionThread.state().root().getChildren( "args" ).deepCopy( jArgs );
-                    /* initExecutionThread.addSessionListener( new SessionListener() {
-                            public void onSessionExecuted( SessionThread session )
-                            {}
-                            public void onSessionError( SessionThread session, FaultException fault )
-                            {
-                                    exit();
-                            }
-                    }); */
+		if ( lateCheck ) {
+			exit();
+			return;
+		}
 
-                    correlationEngine.onSingleExecutionSessionStart( initExecutionThread );
-                    // initExecutionThread.addSessionListener( correlationEngine );
-                    initExecutionThread.start();
-                } catch( InvalidIdException e ) { assert false; }
-            }
+		sessionStarters = Collections.unmodifiableMap( sessionStarters );
+		try {
+			initExecutionThread = new InitSessionThread( this, getDefinition( "init" ) );
+
+			commCore.init();
+
+			// Fill root node with external values (arguments, parameters, etc.)
+			Value root = initExecutionThread.state().root();
+
+			// Initialize program arguments in the args variable.
+			ValueVector jArgs = ValueVector.create();
+			for( String s : arguments ) {
+				jArgs.add( Value.create( s ) );
+			}
+			root.getChildren( "args" ).deepCopy( jArgs );
+
+			// Initialize external parameters. Evaluation of values is done in late check
+			externalParamsSyntheticRoot.children().forEach( (key, value) -> root.getChildren( key ).deepCopy( value ) );
+
+			correlationEngine.onSingleExecutionSessionStart( initExecutionThread );
+			// initExecutionThread.addSessionListener( correlationEngine );
+			initExecutionThread.start();
+		} catch( InvalidIdException e ) { assert false; }
 	}
 	
 	private void runCode()
@@ -1179,10 +1200,9 @@ public class Interpreter
 
 	private final ExecutorService nativeExecutorService =
 		new JolieThreadPoolExecutor( new NativeJolieThreadFactory( this ) );
-		// Executors.newCachedThreadPool( new NativeJolieThreadFactory( this ) );
+
 	private final ExecutorService processExecutorService =
 		new JolieThreadPoolExecutor( new JolieExecutionThreadFactory( this ) );
-		// Executors.newCachedThreadPool( new JolieExecutionThreadFactory( this ) );
 
 	/**
 	 * Runs an asynchronous task in this Interpreter internal thread pool.
@@ -1230,8 +1250,6 @@ public class Interpreter
 				future.setResult( e );
 			}
 			runCode();
-			//commCore.shutdown();
-			// final boolean proceed;
 			exit();
 		}
 	}
@@ -1303,6 +1321,7 @@ public class Interpreter
 			collapser.collapse();
 
 			check = cmdParser.check();
+			lateCheck = cmdParser.lateCheck();
 
 			final SemanticVerifier semanticVerifier;
 

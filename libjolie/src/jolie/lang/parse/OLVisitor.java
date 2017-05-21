@@ -127,4 +127,5 @@ public interface OLVisitor
 	public void visit( ProvideUntilStatement n );
 	public void visit( TypeChoiceDefinition n );
 	public void visit( ParameterDefinition n );
+	public void visit( ConfigurationTree.ExternalParamNode n );
 }

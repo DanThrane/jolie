@@ -34,6 +34,9 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiPredicate;
+
+import jolie.configuration.ProcessedParameterAssignment;
+import jolie.configuration.ProcessedParameterDefinition;
 import jolie.lang.Constants;
 import jolie.lang.Constants.ExecutionMode;
 import jolie.lang.Constants.OperandType;
@@ -1642,7 +1645,31 @@ public class OOITBuilder implements OLVisitor
 	@Override
 	public void visit( ParameterDefinition n )
 	{
+		Type type = buildType( n.type() );
+		interpreter.registerExternalParameterDefinition(
+				new ProcessedParameterDefinition( n.context(), n.name(), type ) );
+	}
 
+	@Override
+	public void visit( ConfigurationTree.ExternalParamNode n )
+	{
+		// Build a dummy path
+		VariablePath path = buildVariablePath( n.path() );
+
+		// Update it to point to our synthetic root.
+		//
+		// The "late checker" will evaluate all external parameter assignments within this root and perform type
+		// checking before any execution thread is initialized, which contains the real root. Once type checking has
+		// been performed the values will be copied over to the real state (assuming we don't terminate after late
+		// checking).
+		VariablePath isolatedPath = new ClosedVariablePath( path.path(), interpreter.externalParametersRoot() );
+
+		// Create assignment process
+		Expression e = buildExpression( n.expressionNode() );
+
+		// Register it with the interpreter
+		interpreter.registerExternalParameterAssignment(
+				new ProcessedParameterAssignment( n.context(), isolatedPath, e ) );
 	}
 
 	public void visit( SolicitResponseForwardStatement n )

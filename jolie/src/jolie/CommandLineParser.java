@@ -72,7 +72,8 @@ public class CommandLineParser implements Closeable
 	private final boolean isProgramCompiled;
 	private final boolean typeCheck;
 	private final boolean tracer;
-        private final boolean check;
+	private final boolean check;
+	private final boolean lateCheck;
 	private final Level logLevel;
 	private File programDirectory = null;
 	private final Map< String, JoliePackage > knownPackages = new HashMap<>();
@@ -142,13 +143,27 @@ public class CommandLineParser implements Closeable
 	 * <code>true</code> if the check option has been specified, false
 	 * otherwise.
 	 *
-	 * @return <code>true</code> if the verbose option has been specified, false
+	 * @return <code>true</code> if the check option has been specified, false
 	 * otherwise
 	 */
 	public boolean check()
 	{
 		return check;
 	}
+
+	/**
+	 * Returns
+	 * <code>true</code> if the latecheck option has been specified, false
+	 * otherwise.
+	 *
+	 * @return <code>true</code> if the latecheck option has been specified, false
+	 * otherwise
+	 */
+	public boolean lateCheck()
+	{
+		return lateCheck;
+	}
+
 
 	/**
 	 * Returns {@code true} if the program is compiled, {@code false} otherwise.
@@ -391,6 +406,7 @@ public class CommandLineParser implements Closeable
 		List< String > optionsList = new ArrayList<>();
 		boolean bTracer = false;
 		boolean bCheck = false;
+		boolean bLateCheck = false;
 		boolean bTypeCheck = false; // Default for typecheck
 		Level lLogLevel = Level.INFO;
 		List< String > programArgumentsList = new ArrayList<>();
@@ -461,6 +477,9 @@ public class CommandLineParser implements Closeable
 			} else if ( "--check".equals( argsList.get( i ) ) ) {
 				optionsList.add( argsList.get( i ) );
 				bCheck = true;
+			} else if ( "--latecheck".equals( argsList.get( i ) ) ) {
+				optionsList.add( argsList.get( i ) );
+				bLateCheck = true;
 			} else if ( "--trace".equals( argsList.get( i ) ) ) {
 				optionsList.add( argsList.get( i ) );
 				bTracer = true;
@@ -468,19 +487,19 @@ public class CommandLineParser implements Closeable
 				optionsList.add( argsList.get( i ) );
 				i++;
 				String level = argsList.get( i );
-				switch( level ) {
-				case "severe":
-					lLogLevel = Level.SEVERE;
-					break;
-				case "warning":
-					lLogLevel = Level.WARNING;
-					break;
-				case "fine":
-					lLogLevel = Level.FINE;
-					break;
-				case "info":
-					lLogLevel = Level.INFO;
-					break;
+				switch ( level ) {
+					case "severe":
+						lLogLevel = Level.SEVERE;
+						break;
+					case "warning":
+						lLogLevel = Level.WARNING;
+						break;
+					case "fine":
+						lLogLevel = Level.FINE;
+						break;
+					case "info":
+						lLogLevel = Level.INFO;
+						break;
 				}
 				optionsList.add( argsList.get( i ) );
 			} else if ( "--charset".equals( argsList.get( i ) ) ) {
@@ -491,12 +510,12 @@ public class CommandLineParser implements Closeable
 			} else if ( "--version".equals( argsList.get( i ) ) ) {
 				throw new CommandLineException( getVersionString() );
 			} else if (
-				argsList.get( i ).endsWith( ".ol" )
-				||
-				argsList.get( i ).endsWith( ".iol" )
-				||
-				argsList.get( i ).endsWith( ".olc" )
-			) {
+					argsList.get( i ).endsWith( ".ol" )
+							||
+							argsList.get( i ).endsWith( ".iol" )
+							||
+							argsList.get( i ).endsWith( ".olc" )
+					) {
 				if ( olFilepath == null ) {
 					olFilepath = argsList.get( i );
 				} else {
@@ -512,7 +531,7 @@ public class CommandLineParser implements Closeable
 						olFilepath = olFilepath.replace( "\\", "/" );
 					}
 					libList.add( japFilename );
-					Collection< String> japOptions = parseJapManifestForOptions( manifest );
+					Collection< String > japOptions = parseJapManifestForOptions( manifest );
 					argsList.addAll( i + 1, japOptions );
 					japUrl = japFilename + "!";
 					programDirectory = new File( japFilename ).getParentFile();
@@ -535,7 +554,7 @@ public class CommandLineParser implements Closeable
 					if ( pack.getEntryPoint() == null ) {
 						throw new CommandLineException( String.format(
 								"Attempting to start program from package (%s). " +
-										"This package has no entry-point defined!\n  "  +
+										"This package has no entry-point defined!\n  " +
 										"Package name: '%s'. Package root: '%s'",
 								pack.getName(), pack.getName(), pack.getRoot()
 						) );
@@ -686,6 +705,7 @@ public class CommandLineParser implements Closeable
 		isProgramCompiled = openProgram.key().toString().endsWith( ".olc" );
 		tracer = bTracer && !isProgramCompiled;
 		check = bCheck && !isProgramCompiled;
+		lateCheck = bLateCheck && !isProgramCompiled;
 		programFilepath = openProgram.key();
 		programStream = openProgram.value();
 
