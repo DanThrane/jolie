@@ -80,6 +80,8 @@ import jolie.lang.parse.ast.UndefStatement;
 import jolie.lang.parse.ast.ValueVectorSizeExpressionNode;
 import jolie.lang.parse.ast.VariablePathNode;
 import jolie.lang.parse.ast.WhileStatement;
+import jolie.lang.parse.ast.ParameterDefinition;
+import jolie.lang.parse.ast.ConfigurationTree;
 import jolie.lang.parse.ast.courier.CourierChoiceStatement;
 import jolie.lang.parse.ast.courier.CourierDefinitionNode;
 import jolie.lang.parse.ast.courier.NotificationForwardStatement;
@@ -427,6 +429,8 @@ public class ProgramVisitor   extends GeneralProgramVisitor implements OLVisitor
 	public void visit( VoidExpressionNode n ) {}
 	public void visit( ProvideUntilStatement n ) {}
 	public void visit( ForEachArrayItemStatement n ) {}
+	public void visit( ConfigurationTree.ExternalParamNode n ) {}
+	public void visit( ParameterDefinition n ) {}
 
 	@Override
 	public void visit(TypeChoiceDefinition typeChoiceDefinition) {}

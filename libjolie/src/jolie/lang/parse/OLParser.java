@@ -727,9 +727,6 @@ public class OLParser extends AbstractParser
 	private IncludeFile findPackageInclude( JoliePackage joliePackage, String includeString )
 			throws ParserException, FileNotFoundException
 	{
-		// TODO The files we include should be able to include the correct files from include after that.
-		// Currently doesn't work
-
 		Objects.requireNonNull( joliePackage );
 		Objects.requireNonNull( includeString );
 
